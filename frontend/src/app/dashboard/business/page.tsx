@@ -49,10 +49,44 @@ export default function BusinessDashboard() {
         name: "", description: "", target: "", duration: "", revenueShare: ""
     });
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [myPools, setMyPools] = useState<any[]>([]);
+    const [poolsLoading, setPoolsLoading] = useState(true);
+    const [revenueAmounts, setRevenueAmounts] = useState<Record<number, string>>({});
 
     const publicClient = usePublicClient();
     const { address, isConnected } = useAccount();
 
+    useEffect(() => {
+        if (!address) return;
+        setPoolsLoading(true);
+        fetch("http://localhost:3001/api/get-pool-data")
+            .then(r => r.json())
+            .then(d => {
+                const filtered = (d.pools || []).filter((p: any) =>
+                    p.business?.address?.toLowerCase() === address.toLowerCase()
+                );
+                setMyPools(filtered);
+            })
+            .catch(() => setMyPools([]))
+            .finally(() => setPoolsLoading(false));
+    }, [address]);
+
+    const handleSubmitRevenue = async (poolId: number, poolAddress: string, amount: string) => {
+        if (!amount || isNaN(Number(amount))) return;
+        try {
+            const res = await fetch("http://localhost:3001/api/submit-revenue", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ poolAddress, amount: Number(amount) })
+            });
+            if (res.ok) {
+                alert(`Revenue of $${amount} submitted for pool ${poolAddress}. The Oracle will push it on-chain.`);
+                setRevenueAmounts(prev => ({ ...prev, [poolId]: "" }));
+            }
+        } catch (e) {
+            alert("Revenue submission failed. Check the backend.");
+        }
+    };
     const { writeContractAsync: deployPool, data: txHash } = useWriteContract();
     const { isLoading: isDeploying, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
 
@@ -217,71 +251,90 @@ export default function BusinessDashboard() {
 
                         {/* Active Pools Grid */}
                         <h2 className="font-display text-xl font-bold text-foreground mb-4">Your Active Pools</h2>
-                        <div className="grid md:grid-cols-2 gap-6 mb-10">
-
-                            {/* Pool Card */}
-                            <div className="border border-surface-border bg-surface rounded-2xl p-6 shadow-sm flex flex-col justify-between">
-                                <div className="flex justify-between items-start mb-6">
-                                    <div className="flex gap-3 items-center">
-                                        <div className="h-10 w-10 bg-[#F3BA2F]/10 rounded border border-[#F3BA2F]/20 flex justify-center items-center">
-                                            <Building2 className="h-5 w-5 text-[#F3BA2F]" />
-                                        </div>
-                                        <div>
-                                            <div className="font-bold text-foreground">Downtown Expansion</div>
-                                            <div className="text-xs text-slate-500 font-mono">0x14...8fA2</div>
-                                        </div>
-                                    </div>
-                                    <span className="bg-emerald-500/10 text-emerald-500 text-xs font-bold px-2 py-1 rounded uppercase tracking-wider">Funded</span>
-                                </div>
-
-                                <div className="space-y-4 mb-6">
-                                    <div>
-                                        <div className="flex justify-between text-xs text-slate-500 mb-1">
-                                            <span>Capital Raised</span>
-                                            <span className="font-medium text-foreground">$50,000 / 50,000</span>
-                                        </div>
-                                        <div className="h-2 w-full bg-background rounded-full overflow-hidden border border-surface-border">
-                                            <div className="h-full bg-emerald-500 rounded-full w-full" />
-                                        </div>
-                                    </div>
-                                    <div className="flex justify-between p-3 bg-background rounded-xl border border-surface-border">
-                                        <div>
-                                            <div className="text-[10px] text-slate-500 uppercase">Rev Share</div>
-                                            <div className="font-bold text-foreground">15%</div>
-                                        </div>
-                                        <div className="text-right">
-                                            <div className="text-[10px] text-slate-500 uppercase">Duration</div>
-                                            <div className="font-bold text-foreground">365 Days</div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <button className="w-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2">
-                                    <Banknote className="h-4 w-4" /> Deposit Monthly Revenue
-                                </button>
+                        {poolsLoading ? (
+                            <div className="text-slate-500 animate-pulse mb-10">Loading your pools...</div>
+                        ) : myPools.length === 0 ? (
+                            <div className="mb-10 p-6 border border-dashed border-surface-border rounded-2xl text-center text-slate-500">
+                                No pools found for your wallet. Deploy your first pool above!
                             </div>
+                        ) : (
+                            <div className="grid md:grid-cols-2 gap-6 mb-10">
+                                {myPools.map(pool => (
+                                    <div key={pool.id} className="border border-surface-border bg-surface rounded-2xl p-6 shadow-sm flex flex-col justify-between">
+                                        <div className="flex justify-between items-start mb-6">
+                                            <div className="flex gap-3 items-center">
+                                                <div className="h-10 w-10 bg-[#F3BA2F]/10 rounded border border-[#F3BA2F]/20 flex justify-center items-center">
+                                                    <Building2 className="h-5 w-5 text-[#F3BA2F]" />
+                                                </div>
+                                                <div>
+                                                    <div className="font-bold text-foreground">{pool.business?.name || pool.tokenName}</div>
+                                                    <div className="text-xs text-slate-500 font-mono">
+                                                        {pool.poolAddress ? `${pool.poolAddress.slice(0, 6)}...${pool.poolAddress.slice(-4)}` : "Deploying..."}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <span className="bg-emerald-500/10 text-emerald-500 text-xs font-bold px-2 py-1 rounded uppercase tracking-wider">Live</span>
+                                        </div>
 
-                        </div>
+                                        <div className="space-y-4 mb-6">
+                                            <div className="flex justify-between p-3 bg-background rounded-xl border border-surface-border">
+                                                <div>
+                                                    <div className="text-[10px] text-slate-500 uppercase">Target</div>
+                                                    <div className="font-bold text-foreground">${pool.fundingTarget.toLocaleString()}</div>
+                                                </div>
+                                                <div>
+                                                    <div className="text-[10px] text-slate-500 uppercase">Rev Share</div>
+                                                    <div className="font-bold text-foreground">{pool.revenueShare}%</div>
+                                                </div>
+                                                <div className="text-right">
+                                                    <div className="text-[10px] text-slate-500 uppercase">Duration</div>
+                                                    <div className="font-bold text-foreground">{pool.durationDays} Days</div>
+                                                </div>
+                                            </div>
+                                            {pool.poolAddress && (
+                                                <a href={`https://testnet.bscscan.com/address/${pool.poolAddress}`} target="_blank" rel="noopener noreferrer"
+                                                    className="text-xs text-primary flex items-center gap-1 hover:underline">
+                                                    View on BscScan →
+                                                </a>
+                                            )}
+                                            <div className="flex gap-2">
+                                                <input
+                                                    type="number"
+                                                    placeholder="Revenue amount ($)"
+                                                    value={revenueAmounts[pool.id] || ""}
+                                                    onChange={e => setRevenueAmounts(prev => ({ ...prev, [pool.id]: e.target.value }))}
+                                                    className="flex-1 bg-background border border-surface-border rounded-xl px-3 py-2 text-sm focus:border-primary outline-none"
+                                                />
+                                                <button
+                                                    onClick={() => handleSubmitRevenue(pool.id, pool.poolAddress, revenueAmounts[pool.id] || "")}
+                                                    className="bg-primary/10 text-primary hover:bg-primary/20 transition-colors px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-1"
+                                                >
+                                                    <Banknote className="h-4 w-4" /> Submit Revenue
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
 
-                        {/* Oracle Submission Integration Mock */}
+                        {/* Backend Integration Status Banner */}
                         <div className="border border-surface-border bg-surface p-6 rounded-2xl">
                             <div className="flex items-center justify-between mb-4 border-b border-surface-border pb-4">
                                 <div>
                                     <h3 className="font-display font-medium text-foreground text-lg">Backend Integration Status</h3>
-                                    <p className="text-sm text-slate-500">Live feed from your PoS (Point of Sale) system API.</p>
+                                    <p className="text-sm text-slate-500">Live feed from your Oracle and revenue pipeline.</p>
                                 </div>
                                 <div className="flex items-center gap-2 px-3 py-1 bg-background border border-surface-border rounded-full text-xs font-mono text-emerald-500">
-                                    <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" /> API Connected
+                                    <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" /> Oracle Active
                                 </div>
                             </div>
-
                             <div className="space-y-3 font-mono text-xs max-h-40 overflow-y-auto w-full">
                                 {[
-                                    "Oracle: Verified transaction ID 99312 - $14.50",
-                                    "Oracle: Verified transaction ID 99313 - $8.20",
-                                    "Oracle: Verified transaction ID 99314 - $42.00",
-                                    "Aggregator: Batching 142 transactions for daily log...",
-                                    "Smart Contract: Awaiting monthly stablecoin deposit of $842.10 to cover yield."
+                                    "Oracle: Polling backend for new revenue events...",
+                                    "Oracle: Verified revenue event - calling depositRevenue() on-chain",
+                                    "Smart Contract: accRewardPerShare updated for all token holders",
+                                    "Investor: claimYield() available for eligible addresses",
                                 ].map((log, i) => (
                                     <div key={i} className="flex gap-4">
                                         <span className="text-slate-500">[{new Date().toLocaleTimeString()}]</span>
@@ -294,7 +347,6 @@ export default function BusinessDashboard() {
                     </motion.div>
                 )}
             </AnimatePresence>
-
         </div>
     );
 }

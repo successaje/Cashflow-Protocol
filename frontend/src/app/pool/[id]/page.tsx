@@ -53,9 +53,16 @@ const ERC20_ABI = [
 const POOL_ABI = [
     {
         "inputs": [{ "internalType": "uint256", "name": "amount", "type": "uint256" }],
-        "name": "deposit",
+        "name": "invest",
         "outputs": [],
         "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "fundingRaised",
+        "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+        "stateMutability": "view",
         "type": "function"
     }
 ] as const;
@@ -174,11 +181,11 @@ export default function PoolDetail() {
             // 2. Wait for wallet confirmation before depositing
             setTxStatus("depositing");
 
-            // 3. Deposit into Pool
+            // 3. Invest into Pool (calls the `invest` function on CashflowPool)
             await writeDeposit({
                 address: poolContractAddress,
                 abi: POOL_ABI,
-                functionName: 'deposit',
+                functionName: 'invest',
                 args: [amountInWei],
                 gas: 500_000n,
             });

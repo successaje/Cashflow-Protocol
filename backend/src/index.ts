@@ -95,6 +95,20 @@ app.post("/api/submit-revenue", async (req, res) => {
     }
 });
 
+// API: Get revenue history for a specific pool
+app.get("/api/revenue-history", async (req, res) => {
+    try {
+        const { poolAddress } = req.query;
+        const events = await prisma.revenueEvent.findMany({
+            where: poolAddress ? { poolAddress: String(poolAddress) } : {},
+            orderBy: { createdAt: "asc" }
+        });
+        res.json({ success: true, events });
+    } catch (error) {
+        res.status(500).json({ error: "Failed to fetch revenue history" });
+    }
+});
+
 // FAUCET: Mint 1,000 Mock USDT to the requesting wallet (dev/testnet only)
 const USDT_ADDRESS = "0xBdab08C6d27cb6C5aa751Bc512cbe998F9EB9fbE";
 const MOCK_USDT_ABI = [
