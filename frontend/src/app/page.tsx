@@ -65,10 +65,14 @@ export default function Home() {
         Hero Section - Full Height Split View
       */}
       <section className="relative min-h-[calc(100vh-4rem)] flex flex-col lg:flex-row items-center overflow-hidden border-b border-surface-border">
-        {/* Background Gradients */}
+        {/* Background Gradients & Grid Pattern */}
         <div className="absolute inset-0 bg-background pointer-events-none" />
-        <div className="absolute top-0 right-0 w-[50%] h-[50%] bg-[#F3BA2F]/5 blur-[120px] rounded-full pointer-events-none" />
-        <div className="absolute bottom-0 left-0 w-[50%] h-[50%] bg-primary/5 blur-[120px] rounded-full pointer-events-none" />
+        {/* Animated Coordinate Grid Overlay */}
+        <div className="absolute inset-0 bg-grid-black dark:bg-grid-white opacity-[0.03] dark:opacity-[0.05] pointer-events-none [mask-image:linear-gradient(to_bottom,transparent,black_20%,black_80%,transparent)]" />
+
+        {/* Blurred Accent Orbs */}
+        <div className="absolute top-1/4 right-0 w-[600px] h-[600px] bg-[#F3BA2F]/5 blur-[120px] rounded-full pointer-events-none -translate-y-1/2 translate-x-1/3" />
+        <div className="absolute bottom-0 left-0 w-[800px] h-[800px] bg-primary/5 blur-[150px] rounded-full pointer-events-none translate-y-1/3 -translate-x-1/4" />
 
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 w-full relative z-10 grid lg:grid-cols-2 gap-12 lg:gap-8 py-12">
 
@@ -249,15 +253,30 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Partners / Ecosystem */}
-      <section className="py-12 border-b border-surface-border bg-surface/10">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 text-center flex flex-col sm:flex-row justify-center items-center gap-8 sm:gap-16 opacity-70 hover:opacity-100 transition-opacity duration-500">
-          <p className="text-sm font-medium text-slate-500 uppercase tracking-widest hidden sm:block">Built On</p>
-          <div className="flex flex-wrap items-center justify-center gap-10">
+      {/* Partners / Ecosystem - Infinite Marquee */}
+      <section className="py-12 border-b border-surface-border bg-surface/5 relative overflow-hidden">
+        <div className="absolute inset-y-0 left-0 w-32 bg-gradient-to-r from-background to-transparent z-10 pointer-events-none" />
+        <div className="absolute inset-y-0 right-0 w-32 bg-gradient-to-l from-background to-transparent z-10 pointer-events-none" />
+
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 text-center mb-8">
+          <p className="text-sm font-bold text-slate-500 uppercase tracking-widest">Built On Institutional Infrastructure</p>
+        </div>
+
+        <div className="flex w-[200%] sm:w-[150%] xl:w-full overflow-hidden opacity-70 hover:opacity-100 transition-opacity duration-500">
+          <div className="flex items-center gap-16 animate-marquee whitespace-nowrap px-8">
+            {/* Set 1 */}
             <Image src="/images/bnb-bnb-logo.png" alt="BNB Chain" width={140} height={40} className="h-10 w-auto object-contain grayscale hover:grayscale-0 transition-all cursor-pointer" />
             <Image src="/images/chainlink.png" alt="Chainlink" width={140} height={40} className="h-10 w-auto object-contain grayscale hover:grayscale-0 transition-all cursor-pointer" />
             <Image src="/images/polygon-matic-logo.png" alt="Polygon" width={140} height={40} className="h-10 w-auto object-contain grayscale hover:grayscale-0 transition-all cursor-pointer" />
             <Image src="/images/arbitrum-arb-logo.png" alt="Arbitrum" width={140} height={40} className="h-10 w-auto object-contain grayscale hover:grayscale-0 transition-all cursor-pointer" />
+            <Image src="/images/aave.png" alt="Aave" width={140} height={40} className="h-10 w-auto object-contain grayscale hover:grayscale-0 transition-all cursor-pointer" />
+
+            {/* Set 2 (Duplicated for continuous flow) */}
+            <Image src="/images/bnb-bnb-logo.png" alt="BNB Chain" width={140} height={40} className="h-10 w-auto object-contain grayscale hover:grayscale-0 transition-all cursor-pointer" />
+            <Image src="/images/chainlink.png" alt="Chainlink" width={140} height={40} className="h-10 w-auto object-contain grayscale hover:grayscale-0 transition-all cursor-pointer" />
+            <Image src="/images/polygon-matic-logo.png" alt="Polygon" width={140} height={40} className="h-10 w-auto object-contain grayscale hover:grayscale-0 transition-all cursor-pointer" />
+            <Image src="/images/arbitrum-arb-logo.png" alt="Arbitrum" width={140} height={40} className="h-10 w-auto object-contain grayscale hover:grayscale-0 transition-all cursor-pointer" />
+            <Image src="/images/aave.png" alt="Aave" width={140} height={40} className="h-10 w-auto object-contain grayscale hover:grayscale-0 transition-all cursor-pointer" />
           </div>
         </div>
       </section>
@@ -324,7 +343,8 @@ export default function Home() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {/* Mock Pool Card 1 */}
-            <div className="group flex flex-col justify-between rounded-3xl border border-surface-border bg-background transition-all hover:-translate-y-1 hover:border-[#F3BA2F]/50 shadow-sm overflow-hidden">
+            <div className="group relative flex flex-col justify-between rounded-3xl border border-surface-border bg-background/80 backdrop-blur-xl transition-all hover:-translate-y-1 hover:border-[#F3BA2F]/50 shadow-sm overflow-hidden z-10">
+              <div className="absolute inset-0 bg-gradient-to-br from-[#F3BA2F]/0 to-[#F3BA2F]/0 group-hover:from-[#F3BA2F]/5 group-hover:to-transparent transition-colors duration-500 pointer-events-none" />
               <div className="p-6">
                 <div className="flex justify-between items-start mb-6">
                   <div className="flex gap-3 items-center">
@@ -368,7 +388,8 @@ export default function Home() {
             </div>
 
             {/* Mock Pool Card 2 */}
-            <div className="group flex flex-col justify-between rounded-3xl border border-surface-border bg-background transition-all hover:-translate-y-1 hover:border-[#F3BA2F]/50 shadow-sm overflow-hidden">
+            <div className="group relative flex flex-col justify-between rounded-3xl border border-surface-border bg-background/80 backdrop-blur-xl transition-all hover:-translate-y-1 hover:border-[#F3BA2F]/50 shadow-sm overflow-hidden z-10">
+              <div className="absolute inset-0 bg-gradient-to-br from-primary/0 to-primary/0 group-hover:from-primary/5 group-hover:to-transparent transition-colors duration-500 pointer-events-none" />
               <div className="p-6">
                 <div className="flex justify-between items-start mb-6">
                   <div className="flex gap-3 items-center">
@@ -412,8 +433,9 @@ export default function Home() {
             </div>
 
             {/* Mock Pool Card 3 (Fully Funded) */}
-            <div className="group flex flex-col justify-between rounded-3xl border border-surface-border bg-background transition-all hover:-translate-y-1 shadow-sm overflow-hidden relative">
-              <div className="absolute -right-12 top-6 bg-emerald-500 text-white text-[10px] font-bold py-1 w-40 text-center rotate-45 shadow-lg z-10">FUNDED</div>
+            <div className="group relative flex flex-col justify-between rounded-3xl border border-surface-border bg-background/80 backdrop-blur-xl transition-all hover:-translate-y-1 shadow-sm overflow-hidden z-10">
+              <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/0 to-emerald-500/0 group-hover:from-emerald-500/5 group-hover:to-transparent transition-colors duration-500 pointer-events-none" />
+              <div className="absolute -right-12 top-6 bg-emerald-500 text-white text-[10px] font-bold py-1 w-40 text-center rotate-45 shadow-lg z-20">FUNDED</div>
               <div className="p-6 opacity-80">
                 <div className="flex justify-between items-start mb-6">
                   <div className="flex gap-3 items-center">

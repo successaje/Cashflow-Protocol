@@ -38,11 +38,18 @@ export function Footer() {
                     <p className="text-slate-500 text-sm">
                         &copy; {new Date().getFullYear()} Cashflow Protocol. All rights reserved.
                     </p>
-                    <div className="mt-4 md:mt-0 flex gap-4 text-sm text-slate-500">
+                    <div className="mt-4 md:mt-0 flex gap-4 text-sm text-slate-500 relative z-10">
                         <Link href="/legal" className="hover:text-white transition-colors">Terms of Service</Link>
                         <Link href="/legal" className="hover:text-white transition-colors">Privacy Policy</Link>
                         <Link href="/legal" className="hover:text-white transition-colors">Risk Disclosures</Link>
                     </div>
+                </div>
+
+                {/* Massive Clipped Typography */}
+                <div className="mt-16 w-full flex justify-center overflow-hidden pointer-events-none select-none relative h-[24vw] md:h-[20vw] lg:h-[16vw]">
+                    <h1 className="font-display font-black text-[28vw] md:text-[24vw] lg:text-[20vw] leading-none tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-slate-400/80 dark:from-slate-600/80 to-transparent absolute bottom-0 translate-y-[15%]">
+                        Cashflow
+                    </h1>
                 </div>
             </div>
         </footer>
