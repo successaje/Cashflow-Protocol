@@ -6,12 +6,15 @@ import { Building2, Plus, ArrowRight, ShieldCheck, Banknote, RefreshCcw, Activit
 import { useAccount, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
 import { parseUnits } from "viem";
 
-// Mock Factory ABI for MVP Integration
+// Live Factory ABI for BSC Testnet (CashflowPoolFactory.createPool)
 const FACTORY_ABI = [
     {
         "inputs": [
-            { "internalType": "string", "name": "name", "type": "string" },
-            { "internalType": "string", "name": "symbol", "type": "string" }
+            { "internalType": "string", "name": "_tokenName", "type": "string" },
+            { "internalType": "string", "name": "_tokenSymbol", "type": "string" },
+            { "internalType": "uint256", "name": "_fundingTarget", "type": "uint256" },
+            { "internalType": "uint256", "name": "_fundDurationDays", "type": "uint256" },
+            { "internalType": "uint256", "name": "_revenueSharePercentage", "type": "uint256" }
         ],
         "name": "createPool",
         "outputs": [{ "internalType": "address", "name": "", "type": "address" }],
