@@ -21,7 +21,7 @@ const FACTORY_ABI = [
 ] as const;
 
 // Hardcoded Mock Factory Address for BNB Testnet
-const FACTORY_ADDRESS = "0x448721d27c682E347C9cD60BD4b3b107C9d34eEe" as `0x${string}`;
+const FACTORY_ADDRESS = "0x7D3165C15690C5d51C4CEF975d2836c99237B3E3" as `0x${string}`;
 
 export default function BusinessDashboard() {
     const [activeTab, setActiveTab] = useState('overview');

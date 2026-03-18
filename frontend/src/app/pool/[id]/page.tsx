@@ -61,7 +61,7 @@ const POOL_ABI = [
 ] as const;
 
 // Hardcoded Mock USDT Address for BNB Testnet
-const USDT_ADDRESS = "0x337610d27c682E347C9cD60BD4b3b107C9d34dDd" as `0x${string}`;
+const USDT_ADDRESS = "0xBdab08C6d27cb6C5aa751Bc512cbe998F9EB9fbE" as `0x${string}`;
 
 export default function PoolDetail() {
     const { id } = useParams();
@@ -406,14 +406,14 @@ export default function PoolDetail() {
                                         disabled={isFullyFunded || !investAmount || txStatus !== "idle"}
                                         onClick={handleInvest}
                                         className={`w-full rounded-xl py-4 text-base font-bold shadow-lg transition-all duration-200 ease-linear ${isFullyFunded
-                                                ? 'bg-surface-border text-slate-400 cursor-not-allowed shadow-none'
-                                                : txStatus === "approving" || txStatus === "depositing"
-                                                    ? 'bg-[#F3BA2F] text-black shadow-none animate-pulse'
-                                                    : txStatus === "success"
-                                                        ? 'bg-emerald-500 text-white shadow-none'
-                                                        : txStatus === "error"
-                                                            ? 'bg-red-500 text-white shadow-none'
-                                                            : 'bg-primary text-white shadow-[0_4px_14px_0_rgba(99,102,241,0.39)] hover:shadow-[0_6px_20px_rgba(99,102,241,0.23)] hover:bg-primary-hover hover:-translate-y-0.5'
+                                            ? 'bg-surface-border text-slate-400 cursor-not-allowed shadow-none'
+                                            : txStatus === "approving" || txStatus === "depositing"
+                                                ? 'bg-[#F3BA2F] text-black shadow-none animate-pulse'
+                                                : txStatus === "success"
+                                                    ? 'bg-emerald-500 text-white shadow-none'
+                                                    : txStatus === "error"
+                                                        ? 'bg-red-500 text-white shadow-none'
+                                                        : 'bg-primary text-white shadow-[0_4px_14px_0_rgba(99,102,241,0.39)] hover:shadow-[0_6px_20px_rgba(99,102,241,0.23)] hover:bg-primary-hover hover:-translate-y-0.5'
                                             }`}
                                     >
                                         {isFullyFunded ? 'Pool Fully Funded'
