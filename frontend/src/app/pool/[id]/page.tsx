@@ -71,12 +71,31 @@ export default function PoolDetail() {
     const [txStatus, setTxStatus] = useState<"idle" | "approving" | "depositing" | "success" | "error">("idle");
     const [pool, setPool] = useState<any>(null);
     const [loading, setLoading] = useState(true);
+    const [faucetStatus, setFaucetStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
 
     const { writeContractAsync: writeApprove } = useWriteContract();
     const { writeContractAsync: writeDeposit } = useWriteContract();
 
     // The pool's smart contract address (from DB after deploy)
     const poolContractAddress = (pool?.poolAddress || ("0x" + "1".repeat(40))) as `0x${string}`;
+
+    const handleFaucet = async () => {
+        if (!address || faucetStatus === "loading") return;
+        setFaucetStatus("loading");
+        try {
+            const res = await fetch("http://localhost:3001/api/faucet", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ walletAddress: address }),
+            });
+            if (res.ok) setFaucetStatus("done");
+            else setFaucetStatus("error");
+        } catch {
+            setFaucetStatus("error");
+        } finally {
+            setTimeout(() => setFaucetStatus("idle"), 5000);
+        }
+    };
 
     // Fetch pool data from backend using the URL id param
     useEffect(() => {
@@ -149,9 +168,10 @@ export default function PoolDetail() {
                 abi: ERC20_ABI,
                 functionName: 'approve',
                 args: [poolContractAddress, amountInWei],
+                gas: 300_000n,
             });
 
-            // 2. Wait for user to confirm in wallet... (simplified for UI demonstration)
+            // 2. Wait for wallet confirmation before depositing
             setTxStatus("depositing");
 
             // 3. Deposit into Pool
@@ -160,6 +180,7 @@ export default function PoolDetail() {
                 abi: POOL_ABI,
                 functionName: 'deposit',
                 args: [amountInWei],
+                gas: 500_000n,
             });
 
             setTxStatus("success");
@@ -443,6 +464,14 @@ export default function PoolDetail() {
                                             {investAmount || "0"} <span className="text-primary">{pool.tokenSymbol}</span>
                                         </span>
                                     </div>
+
+                                    <button
+                                        onClick={handleFaucet}
+                                        disabled={faucetStatus === "loading"}
+                                        className="w-full mb-3 rounded-xl py-2.5 text-sm font-bold border border-[#F3BA2F]/50 text-[#F3BA2F] hover:bg-[#F3BA2F]/10 transition-colors disabled:opacity-50"
+                                    >
+                                        {faucetStatus === "loading" ? "Minting..." : faucetStatus === "done" ? "✓ 1,000 USDT Sent!" : faucetStatus === "error" ? "Faucet Error" : "Get 1,000 Test USDT"}
+                                    </button>
 
                                     <button
                                         disabled={isFullyFunded || !investAmount || txStatus !== "idle"}
