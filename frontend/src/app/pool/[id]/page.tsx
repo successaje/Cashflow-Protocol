@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid } from "recharts";
-import { ShieldCheck, Calendar, Coins, ArrowUpRight, Clock, Building2, ExternalLink, ShieldAlert, History, Key, Users, TrendingUp, Wallet2 } from "lucide-react";
+import { ShieldCheck, Calendar, Coins, ArrowUpRight, Clock, Building2, ExternalLink, ShieldAlert, History, Key, Users, TrendingUp, Wallet2, ChevronRight } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import { ConnectButton } from '@rainbow-me/rainbowkit';
