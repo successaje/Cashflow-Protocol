@@ -1,0 +1,53 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap');
+
+@import "tailwindcss";
+
+@theme {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-primary: #6366f1;
+  --color-primary-hover: #4f46e5;
+  --color-surface: var(--surface);
+  --color-surface-border: var(--surface-border);
+  --color-surface-hover: var(--surface-hover);
+  --font-sans: var(--font-inter), sans-serif;
+  --font-display: var(--font-outfit), sans-serif;
+}
+
+:root {
+  --background: #f8fafc;
+  --foreground: #0f1115;
+  --surface: #ffffff;
+  --surface-border: #e2e8f0;
+  --surface-hover: rgba(0, 0, 0, 0.05);
+}
+
+.dark {
+  --background: #0f1115;
+  --foreground: #f8fafc;
+  --surface: #1e293b;
+  --surface-border: #334155;
+  --surface-hover: rgba(255, 255, 255, 0.05);
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-inter);
+}
+
+@utility text-gradient {
+  background: linear-gradient(135deg, #a5b4fc 0%, #818cf8 50%, #34d399 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+@layer utilities {
+  .text-gradient {
+    background: linear-gradient(135deg, #a5b4fc 0%, #818cf8 50%, #34d399 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+}

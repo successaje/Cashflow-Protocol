@@ -1,0 +1,40 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Business {
+  id          String   @id @default(uuid())
+  address     String   @unique
+  name        String
+  description String
+  pools       Pool[]
+}
+
+model Pool {
+  id              String   @id @default(uuid())
+  poolAddress     String?  @unique
+  businessId      String
+  tokenName       String
+  tokenSymbol     String
+  fundingTarget   Float
+  revenueShare    Float
+  durationDays    Int
+  createdAt       DateTime @default(now())
+  business        Business @relation(fields: [businessId], references: [id])
+}
+
+model RevenueEvent {
+  id          String   @id @default(uuid())
+  poolAddress   String
+  amount      Float
+  processed   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+}
