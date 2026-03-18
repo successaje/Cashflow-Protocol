@@ -48,9 +48,13 @@ export default function BusinessDashboard() {
         try {
             setIsSubmitting(true);
 
-            // 1. Deploy Contract via Factory
             // Simulated token symbol from name (e.g. "Downtown Espresso" -> "DE")
             const symbol = formData.name.split(" ").map(w => w[0]).join("").toUpperCase() || "CASH";
+
+            // Parse text inputs into BigInts for Solidity uint256
+            const targetAmount = parseUnits(formData.target || "0", 18);
+            const durationDays = BigInt(formData.duration || "0");
+            const revShare = BigInt(formData.revenueShare || "0");
 
             await deployPool({
                 address: FACTORY_ADDRESS,
