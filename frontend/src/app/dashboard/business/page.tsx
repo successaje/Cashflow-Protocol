@@ -56,7 +56,10 @@ export default function BusinessDashboard() {
                 address: FACTORY_ADDRESS,
                 abi: FACTORY_ABI,
                 functionName: 'createPool',
-                args: [formData.name, symbol],
+                args: [formData.name, symbol, targetAmount, durationDays, revShare],
+                // Explicitly cap gas to stay within BSC Testnet's block gas limit.
+                // viem's auto-estimate overshoots the 34M cap when deploying child contracts.
+                gas: 5_000_000n,
             });
 
             // 2. Wait for confirmation & submit off-chain metadata to our API
