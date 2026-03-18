@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid } from "recharts";
-import { ShieldCheck, Calendar, Coins, ArrowUpRight, Clock, Building2, ExternalLink, ShieldAlert, History, Key, Users } from "lucide-react";
+import { ShieldCheck, Calendar, Coins, ArrowUpRight, Clock, Building2, ExternalLink, ShieldAlert, History, Key, Users, TrendingUp, Wallet2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import { ConnectButton } from '@rainbow-me/rainbowkit';
@@ -236,7 +236,12 @@ export default function PoolDetail() {
                                 <Key className="h-4 w-4 text-slate-500" />
                                 Contract: <span className="text-foreground">{pool.contractAddress}</span>
                             </div>
-                            <a href="#" className="flex items-center gap-1 text-xs font-bold text-primary hover:text-primary-hover transition-colors">
+                            <a
+                                href={pool.contractAddress && pool.contractAddress !== 'Pending' ? `https://testnet.bscscan.com/address/${pool.contractAddress}` : '#'}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-1 text-xs font-bold text-primary hover:text-primary-hover transition-colors"
+                            >
                                 View on BscScan <ExternalLink className="h-3 w-3" />
                             </a>
                         </div>
