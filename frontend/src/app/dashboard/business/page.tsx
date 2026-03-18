@@ -4,9 +4,11 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Building2, Plus, ArrowRight, ShieldCheck, Banknote, RefreshCcw, Activity, CheckCircle2 } from "lucide-react";
 import { useAccount, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
-import { parseUnits } from "viem";
+import { parseEventLogs, parseUnits } from "viem";
+import { usePublicClient } from "wagmi";
 
-// Live Factory ABI for BSC Testnet (CashflowPoolFactory.createPool)
+
+// Live Factory ABI for BSC Testnet (CashflowPoolFactory.createPool + PoolCreated event)
 const FACTORY_ABI = [
     {
         "inputs": [
@@ -20,8 +22,20 @@ const FACTORY_ABI = [
         "outputs": [{ "internalType": "address", "name": "", "type": "address" }],
         "stateMutability": "nonpayable",
         "type": "function"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            { "indexed": true, "internalType": "address", "name": "poolAddress", "type": "address" },
+            { "indexed": true, "internalType": "address", "name": "businessAddress", "type": "address" },
+            { "indexed": false, "internalType": "string", "name": "tokenName", "type": "string" },
+            { "indexed": false, "internalType": "string", "name": "tokenSymbol", "type": "string" }
+        ],
+        "name": "PoolCreated",
+        "type": "event"
     }
 ] as const;
+
 
 // Hardcoded Mock Factory Address for BNB Testnet
 const FACTORY_ADDRESS = "0x7D3165C15690C5d51C4CEF975d2836c99237B3E3" as `0x${string}`;
@@ -36,7 +50,9 @@ export default function BusinessDashboard() {
     });
     const [isSubmitting, setIsSubmitting] = useState(false);
 
+    const publicClient = usePublicClient();
     const { address, isConnected } = useAccount();
+
     const { writeContractAsync: deployPool, data: txHash } = useWriteContract();
     const { isLoading: isDeploying, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
 
@@ -51,34 +67,47 @@ export default function BusinessDashboard() {
         try {
             setIsSubmitting(true);
 
-            // Simulated token symbol from name (e.g. "Downtown Espresso" -> "DE")
             const symbol = formData.name.split(" ").map(w => w[0]).join("").toUpperCase() || "CASH";
-
-            // Parse text inputs into BigInts for Solidity uint256
             const targetAmount = parseUnits(formData.target || "0", 18);
             const durationDays = BigInt(formData.duration || "0");
             const revShare = BigInt(formData.revenueShare || "0");
 
-            await deployPool({
+            // 1. Deploy child CashflowPool via the Factory on BSC Testnet
+            const txHash = await deployPool({
                 address: FACTORY_ADDRESS,
                 abi: FACTORY_ABI,
                 functionName: 'createPool',
                 args: [formData.name, symbol, targetAmount, durationDays, revShare],
-                // Explicitly cap gas to stay within BSC Testnet's block gas limit.
-                // viem's auto-estimate overshoots the 34M cap when deploying child contracts.
                 gas: 5_000_000n,
             });
 
-            // 2. Wait for confirmation & submit off-chain metadata to our API
-            // (In a real app, we'd wait for `isSuccess` and extract the child contract address from the Event Logs)
-            alert("Transaction Submitted! Awaiting confirmation...");
+            // 2. Wait for the transaction to be included in a block
+            const receipt = await publicClient!.waitForTransactionReceipt({ hash: txHash });
 
-            setTimeout(() => {
-                setIsSubmitting(false);
-                setShowCreateFlow(false);
-                alert("Cashflow Pool Smart Contract successfully deployed to BNB Chain!");
-                // Here we would then call our POST /api/create-pool with the new physical 0x address
-            }, 5000);
+            // 3. Parse the PoolCreated event to extract the newly deployed pool address
+            const logs = parseEventLogs({ abi: FACTORY_ABI, eventName: 'PoolCreated', logs: receipt.logs });
+            const newPoolAddress = logs[0]?.args?.poolAddress as string | undefined;
+
+            // 4. Save all metadata to our Node.js backend so it appears in the marketplace
+            await fetch('http://localhost:3001/api/create-pool', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    businessAddress: address,
+                    businessName: formData.name,
+                    description: formData.description,
+                    poolAddress: newPoolAddress || txHash, // fallback to txHash if event parse fails
+                    tokenName: formData.name,
+                    tokenSymbol: symbol,
+                    fundingTarget: Number(formData.target),
+                    revenueShare: Number(formData.revenueShare),
+                    durationDays: Number(formData.duration),
+                })
+            });
+
+            setIsSubmitting(false);
+            setShowCreateFlow(false);
+            alert(`Cashflow Pool deployed on BNB Chain!\nPool Address: ${newPoolAddress || 'See BscScan for address'}`);
 
         } catch (error) {
             console.error("Factory Deployment failed:", error);
