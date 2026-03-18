@@ -79,6 +79,7 @@ export default function PoolDetail() {
     const [pool, setPool] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [faucetStatus, setFaucetStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
+    const [revenueHistory, setRevenueHistory] = useState<any[]>([]);
 
     const { writeContractAsync: writeApprove } = useWriteContract();
     const { writeContractAsync: writeDeposit } = useWriteContract();
@@ -141,6 +142,25 @@ export default function PoolDetail() {
         };
         fetchPool();
     }, [id]);
+
+    // Fetch real revenue events for the financials chart once pool loads
+    useEffect(() => {
+        if (!pool?.poolAddress || pool.poolAddress === "Pending") return;
+        fetch(`http://localhost:3001/api/revenue-history?poolAddress=${pool.poolAddress}`)
+            .then(r => r.json())
+            .then(d => {
+                const events = d.events || [];
+                if (events.length > 0) {
+                    const chartData = events.map((e: any, i: number) => ({
+                        month: `Rev ${i + 1}`,
+                        revenue: e.amount,
+                        yield: Math.round(e.amount * ((pool.revenueShare ?? 15) / 100)),
+                    }));
+                    setRevenueHistory(chartData);
+                }
+            })
+            .catch(() => { });
+    }, [pool]);
 
     if (loading) {
         return (
@@ -344,8 +364,11 @@ export default function PoolDetail() {
                                 </div>
 
                                 <div className="h-80 w-full mt-4">
+                                    {revenueHistory.length === 0 && (
+                                        <p className="text-xs text-slate-400 mb-2">No revenue events yet — submit revenue from the Business Dashboard to populate this chart.</p>
+                                    )}
                                     <ResponsiveContainer width="100%" height="100%">
-                                        <AreaChart data={mockHistoryData}>
+                                        <AreaChart data={revenueHistory.length > 0 ? revenueHistory : mockHistoryData}>
                                             <defs>
                                                 <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
                                                     <stop offset="5%" stopColor="#6366f1" stopOpacity={0.2} />
