@@ -68,33 +68,70 @@ export default function PoolDetail() {
     const [investAmount, setInvestAmount] = useState("");
     const { address, isConnected } = useAccount();
     const [activeTab, setActiveTab] = useState('overview');
-    const [isApproving, setIsApproving] = useState(false);
     const [txStatus, setTxStatus] = useState<"idle" | "approving" | "depositing" | "success" | "error">("idle");
+    const [pool, setPool] = useState<any>(null);
+    const [loading, setLoading] = useState(true);
 
-    const { writeContractAsync: writeApprove, data: approveHash } = useWriteContract();
-    const { writeContractAsync: writeDeposit, data: depositHash } = useWriteContract();
+    const { writeContractAsync: writeApprove } = useWriteContract();
+    const { writeContractAsync: writeDeposit } = useWriteContract();
 
-    // The current pool's smart contract address (Simulated)
-    const poolContractAddress = "0x" + "1".repeat(40) as `0x${string}`; // Dummy 40-char hex address
+    // The pool's smart contract address (from DB after deploy)
+    const poolContractAddress = (pool?.poolAddress || ("0x" + "1".repeat(40))) as `0x${string}`;
 
-    // Hardcoded for MVP UI Demo
-    const pool = {
-        id,
-        business: {
-            name: "Downtown Espresso",
-            industry: "Retail Coffee",
-            location: "San Francisco, CA",
-            founded: "2018",
-            description: "A top-rated local coffee chain raising funds to open three new locations across the metropolitan area. Consistent MoM growth of 12% over the last fiscal year with highly predictable foot-traffic revenue models. Funds will be strictly allocated to real estate leasing, equipment purchasing, and initial inventory."
-        },
-        fundingTarget: 50000,
-        raised: 38500,
-        revenueShare: 15,
-        durationDays: 365,
-        tokenSymbol: "ESPR",
-        rating: "A (Low Risk)",
-        contractAddress: "0x8920...f13A",
-    };
+    // Fetch pool data from backend using the URL id param
+    useEffect(() => {
+        const fetchPool = async () => {
+            try {
+                const res = await fetch("http://localhost:3001/api/get-pool-data");
+                if (res.ok) {
+                    const data = await res.json();
+                    const found = (data.pools || []).find((p: any) => String(p.id) === String(id));
+                    if (found) {
+                        setPool({
+                            id: found.id,
+                            business: {
+                                name: found.business?.name || found.tokenName,
+                                industry: found.business?.industry || "Real World Asset",
+                                location: found.business?.location || "On-chain",
+                                founded: found.business?.founded || "2024",
+                                description: found.business?.description || "A verified revenue-generating business tokenizing their future cash flows.",
+                            },
+                            fundingTarget: found.fundingTarget,
+                            raised: found.mockRaised ?? found.fundingTarget * 0.35,
+                            revenueShare: found.revenueShare,
+                            durationDays: found.durationDays,
+                            tokenSymbol: found.tokenSymbol,
+                            rating: "A (Low Risk)",
+                            contractAddress: found.poolAddress || "Pending",
+                            poolAddress: found.poolAddress,
+                        });
+                    }
+                }
+            } catch (e) {
+                console.error("Failed to fetch pool data", e);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchPool();
+    }, [id]);
+
+    if (loading) {
+        return (
+            <div className="min-h-screen flex items-center justify-center">
+                <div className="text-slate-500 animate-pulse">Loading pool data...</div>
+            </div>
+        );
+    }
+
+    if (!pool) {
+        return (
+            <div className="min-h-screen flex items-center justify-center flex-col gap-2">
+                <div className="text-lg font-bold text-foreground">Pool not found.</div>
+                <div className="text-slate-500 text-sm">It may have been removed or the ID is incorrect.</div>
+            </div>
+        );
+    }
 
     const progress = (pool.raised / pool.fundingTarget) * 100;
     const isFullyFunded = progress >= 100;
