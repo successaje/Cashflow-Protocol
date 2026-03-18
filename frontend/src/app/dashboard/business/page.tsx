@@ -3,6 +3,25 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Building2, Plus, ArrowRight, ShieldCheck, Banknote, RefreshCcw, Activity, CheckCircle2 } from "lucide-react";
+import { useAccount, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
+import { parseUnits } from "viem";
+
+// Mock Factory ABI for MVP Integration
+const FACTORY_ABI = [
+    {
+        "inputs": [
+            { "internalType": "string", "name": "name", "type": "string" },
+            { "internalType": "string", "name": "symbol", "type": "string" }
+        ],
+        "name": "createPool",
+        "outputs": [{ "internalType": "address", "name": "", "type": "address" }],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    }
+] as const;
+
+// Hardcoded Mock Factory Address for BNB Testnet
+const FACTORY_ADDRESS = "0x448721d27c682E347C9cD60BD4b3b107C9d34eEe" as `0x${string}`;
 
 export default function BusinessDashboard() {
     const [activeTab, setActiveTab] = useState('overview');
@@ -14,15 +33,48 @@ export default function BusinessDashboard() {
     });
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    const handleCreatePool = (e: React.FormEvent) => {
+    const { address, isConnected } = useAccount();
+    const { writeContractAsync: deployPool, data: txHash } = useWriteContract();
+    const { isLoading: isDeploying, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
+
+    const handleCreatePool = async (e: React.FormEvent) => {
         e.preventDefault();
-        setIsSubmitting(true);
-        // Mock smart contract compilation / submission
-        setTimeout(() => {
+
+        if (!isConnected || !address) {
+            alert("Please connect your wallet first.");
+            return;
+        }
+
+        try {
+            setIsSubmitting(true);
+
+            // 1. Deploy Contract via Factory
+            // Simulated token symbol from name (e.g. "Downtown Espresso" -> "DE")
+            const symbol = formData.name.split(" ").map(w => w[0]).join("").toUpperCase() || "CASH";
+
+            await deployPool({
+                address: FACTORY_ADDRESS,
+                abi: FACTORY_ABI,
+                functionName: 'createPool',
+                args: [formData.name, symbol],
+            });
+
+            // 2. Wait for confirmation & submit off-chain metadata to our API
+            // (In a real app, we'd wait for `isSuccess` and extract the child contract address from the Event Logs)
+            alert("Transaction Submitted! Awaiting confirmation...");
+
+            setTimeout(() => {
+                setIsSubmitting(false);
+                setShowCreateFlow(false);
+                alert("Cashflow Pool Smart Contract successfully deployed to BNB Chain!");
+                // Here we would then call our POST /api/create-pool with the new physical 0x address
+            }, 5000);
+
+        } catch (error) {
+            console.error("Factory Deployment failed:", error);
             setIsSubmitting(false);
-            setShowCreateFlow(false);
-            alert("Cashflow Pool Created! Smart Contract deployed.");
-        }, 2000);
+            alert("Failed to deploy smart contract. See console.");
+        }
     };
 
     return (

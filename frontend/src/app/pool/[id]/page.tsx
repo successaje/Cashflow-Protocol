@@ -7,7 +7,8 @@ import { ShieldCheck, Calendar, Coins, ArrowUpRight, Clock, Building2, ExternalL
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import { ConnectButton } from '@rainbow-me/rainbowkit';
-import { useAccount } from 'wagmi';
+import { useAccount, useWriteContract, useWaitForTransactionReceipt, useReadContract } from 'wagmi';
+import { parseUnits } from 'viem';
 
 const mockHistoryData = [
     { month: "Jan", revenue: 12000, yield: 1800 },
@@ -25,11 +26,56 @@ const mockActivityFeed = [
     { id: 4, type: 'invest', user: '0x1c...99f', amount: 10000, time: '4 days ago' },
 ];
 
+// Mock ABIs for MVP Integration
+const ERC20_ABI = [
+    {
+        "inputs": [
+            { "internalType": "address", "name": "spender", "type": "address" },
+            { "internalType": "uint256", "name": "amount", "type": "uint256" }
+        ],
+        "name": "approve",
+        "outputs": [{ "internalType": "bool", "name": "", "type": "bool" }],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            { "internalType": "address", "name": "account", "type": "address" },
+            { "internalType": "address", "name": "spender", "type": "address" }
+        ],
+        "name": "allowance",
+        "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+        "stateMutability": "view",
+        "type": "function"
+    }
+] as const;
+
+const POOL_ABI = [
+    {
+        "inputs": [{ "internalType": "uint256", "name": "amount", "type": "uint256" }],
+        "name": "deposit",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    }
+] as const;
+
+// Hardcoded Mock USDT Address for BNB Testnet
+const USDT_ADDRESS = "0x337610d27c682E347C9cD60BD4b3b107C9d34dDd" as `0x${string}`;
+
 export default function PoolDetail() {
     const { id } = useParams();
     const [investAmount, setInvestAmount] = useState("");
     const { address, isConnected } = useAccount();
     const [activeTab, setActiveTab] = useState('overview');
+    const [isApproving, setIsApproving] = useState(false);
+    const [txStatus, setTxStatus] = useState<"idle" | "approving" | "depositing" | "success" | "error">("idle");
+
+    const { writeContractAsync: writeApprove, data: approveHash } = useWriteContract();
+    const { writeContractAsync: writeDeposit, data: depositHash } = useWriteContract();
+
+    // The current pool's smart contract address (Simulated)
+    const poolContractAddress = "0x" + "1".repeat(40) as `0x${string}`; // Dummy 40-char hex address
 
     // Hardcoded for MVP UI Demo
     const pool = {
@@ -52,6 +98,43 @@ export default function PoolDetail() {
 
     const progress = (pool.raised / pool.fundingTarget) * 100;
     const isFullyFunded = progress >= 100;
+
+    const handleInvest = async () => {
+        if (!investAmount || isNaN(Number(investAmount)) || Number(investAmount) <= 0) return;
+
+        try {
+            setTxStatus("approving");
+            const amountInWei = parseUnits(investAmount, 18); // Assuming 18 decimals for mock USDT
+
+            // 1. Approve USDT
+            await writeApprove({
+                address: USDT_ADDRESS,
+                abi: ERC20_ABI,
+                functionName: 'approve',
+                args: [poolContractAddress, amountInWei],
+            });
+
+            // 2. Wait for user to confirm in wallet... (simplified for UI demonstration)
+            setTxStatus("depositing");
+
+            // 3. Deposit into Pool
+            await writeDeposit({
+                address: poolContractAddress,
+                abi: POOL_ABI,
+                functionName: 'deposit',
+                args: [amountInWei],
+            });
+
+            setTxStatus("success");
+            setTimeout(() => setTxStatus("idle"), 5000);
+            setInvestAmount(""); // Reset
+
+        } catch (error) {
+            console.error("Investment failed:", error);
+            setTxStatus("error");
+            setTimeout(() => setTxStatus("idle"), 5000);
+        }
+    };
 
     return (
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-12">
@@ -320,13 +403,26 @@ export default function PoolDetail() {
                                     </div>
 
                                     <button
-                                        disabled={isFullyFunded}
+                                        disabled={isFullyFunded || !investAmount || txStatus !== "idle"}
+                                        onClick={handleInvest}
                                         className={`w-full rounded-xl py-4 text-base font-bold shadow-lg transition-all duration-200 ease-linear ${isFullyFunded
-                                            ? 'bg-surface-border text-slate-400 cursor-not-allowed shadow-none'
-                                            : 'bg-primary text-white shadow-[0_4px_14px_0_rgba(99,102,241,0.39)] hover:shadow-[0_6px_20px_rgba(99,102,241,0.23)] hover:bg-primary-hover hover:-translate-y-0.5'
+                                                ? 'bg-surface-border text-slate-400 cursor-not-allowed shadow-none'
+                                                : txStatus === "approving" || txStatus === "depositing"
+                                                    ? 'bg-[#F3BA2F] text-black shadow-none animate-pulse'
+                                                    : txStatus === "success"
+                                                        ? 'bg-emerald-500 text-white shadow-none'
+                                                        : txStatus === "error"
+                                                            ? 'bg-red-500 text-white shadow-none'
+                                                            : 'bg-primary text-white shadow-[0_4px_14px_0_rgba(99,102,241,0.39)] hover:shadow-[0_6px_20px_rgba(99,102,241,0.23)] hover:bg-primary-hover hover:-translate-y-0.5'
                                             }`}
                                     >
-                                        {isFullyFunded ? 'Pool Fully Funded' : 'Approve & Invest'}
+                                        {isFullyFunded ? 'Pool Fully Funded'
+                                            : txStatus === "approving" ? 'Approving USDT...'
+                                                : txStatus === "depositing" ? 'Confirming Deposit...'
+                                                    : txStatus === "success" ? 'Investment Successful!'
+                                                        : txStatus === "error" ? 'Transaction Failed'
+                                                            : 'Approve & Invest'
+                                        }
                                     </button>
                                 </>
                             )}
