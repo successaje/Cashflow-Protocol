@@ -103,7 +103,7 @@ function InvestmentRow({ pool, investorAddress }: { pool: DbPool; investorAddres
 
     const invested = Number(formatUnits(balance, 18)).toFixed(2);
     const yieldEarned = Number(formatUnits(pending < 0n ? 0n : pending, 18)).toFixed(4);
-    const estimatedApy = `${(pool.revenueShare * 1.5).toFixed(1)}%`;
+    const estimatedApy = `${pool.revenueShare.toFixed(1)}%`;
 
     const handleClaim = async () => {
         if (!poolAddr || pending <= 0n) return;

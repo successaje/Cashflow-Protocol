@@ -341,7 +341,7 @@ function PoolCard({ pool, i }: { pool: Pool, i: number }) {
                             </div>
                             <div>
                                 <div className="text-[10px] text-slate-500 uppercase">Exp. APY</div>
-                                <div className="font-display font-bold text-foreground">{Math.round(pool.revenueShare * 1.5)}%</div>
+                                <div className="font-display font-bold text-foreground">{pool.revenueShare}%</div>
                             </div>
                         </div>
                         <div className="flex items-center gap-2">

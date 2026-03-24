@@ -275,7 +275,7 @@ export default function PoolDetail() {
                             </div>
                             <div className="bg-background rounded-2xl p-4 border border-surface-border">
                                 <div className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1 flex items-center gap-1"><ArrowUpRight className="h-3.5 w-3.5" /> Est. APY</div>
-                                <div className="font-display text-xl font-bold text-[#F3BA2F]">{pool.revenueShare * 1.5}%</div>
+                                <div className="font-display text-xl font-bold text-[#F3BA2F]">{pool.revenueShare}%</div>
                             </div>
                             <div className="bg-background rounded-2xl p-4 border border-surface-border">
                                 <div className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1 flex items-center gap-1"><Clock className="h-3.5 w-3.5" /> Duration</div>

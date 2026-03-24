@@ -52,8 +52,20 @@ export const startOracle = () => {
             const stablecoin = new ethers.Contract(STABLECOIN_ADDRESS, stablecoinAbi, wallet);
 
             for (const [poolAddress, total] of Object.entries(poolTotals)) {
-                console.log(`Pushing ${total} revenue to pool ${poolAddress}`);
-                const amountWei = ethers.parseEther(total.toString());
+                // Fetch pool to get its revenue share percentage
+                const pool = await prisma.pool.findUnique({
+                    where: { poolAddress: poolAddress }
+                });
+
+                if (!pool) {
+                    console.warn(`Oracle: Pool not found in DB for address ${poolAddress}. Skipping.`);
+                    continue;
+                }
+
+                const shareAmount = (total * pool.revenueShare) / 100;
+                console.log(`Pushing yield: $${shareAmount} (${pool.revenueShare}% of $${total}) to pool ${poolAddress}`);
+                
+                const amountWei = ethers.parseUnits(shareAmount.toFixed(18), 18);
 
                 // Oracle must approve the pool to spend its stablecoin
                 const approveTx = await stablecoin.approve(poolAddress, amountWei);
