@@ -2,9 +2,8 @@ import express from "express";
 import cors from "cors";
 import { PrismaClient } from "@prisma/client";
 import dotenv from "dotenv";
-import { startOracle } from "./oracle";
 import { ethers } from "ethers";
-
+import { startOracle } from "./oracle";
 
 dotenv.config();
 
@@ -70,7 +69,6 @@ app.get("/api/get-pool-data", async (req, res) => {
             include: { business: true }
         });
 
-        // Compute risk score based on recorded revenue events
         const poolsWithRisk = await Promise.all(pools.map(async (pool: any) => {
             if (!pool.poolAddress) return { ...pool, riskScore: "Unrated (Pending)" };
             
@@ -97,19 +95,15 @@ app.get("/api/get-pool-data", async (req, res) => {
     }
 });
 
-// API: Receive revenue data from external systems (POS/USSD webhook)
-// In a real app, this would be authenticated
 app.post("/api/submit-revenue", async (req, res) => {
     try {
         const { poolAddress, amount } = req.body;
-
         const event = await prisma.revenueEvent.create({
             data: {
                 poolAddress,
                 amount
             }
         });
-
         res.json({ success: true, event });
     } catch (error) {
         console.error(error);
@@ -117,7 +111,6 @@ app.post("/api/submit-revenue", async (req, res) => {
     }
 });
 
-// API: Get revenue history for a specific pool
 app.get("/api/revenue-history", async (req, res) => {
     try {
         const { poolAddress } = req.query;
@@ -131,7 +124,6 @@ app.get("/api/revenue-history", async (req, res) => {
     }
 });
 
-// API: Record a new investment in a pool
 app.post("/api/record-investment", async (req, res) => {
     try {
         const { poolAddress, investor, amount } = req.body;
@@ -149,75 +141,116 @@ app.post("/api/record-investment", async (req, res) => {
     }
 });
 
-// API: Get combined activity for a pool (Investments + Revenue)
-app.get("/api/pool-activity", async (req, res) => {
+// API: Get investor statistics (Total Invested, Total Earned) - BACK TO DB-ONLY AS PER USER REQUEST
+app.get("/api/investor-stats", async (req, res) => {
     try {
-        const { poolAddress } = req.query;
-        if (!poolAddress) return res.status(400).json({ error: "poolAddress required" });
+        const { address } = req.query;
+        if (!address) return res.status(400).json({ error: "address required" });
 
-        const [investments, revenue] = await Promise.all([
-            prisma.investment.findMany({ where: { poolAddress: String(poolAddress) }, orderBy: { createdAt: 'desc' }, take: 10 }),
-            prisma.revenueEvent.findMany({ where: { poolAddress: String(poolAddress) }, orderBy: { createdAt: 'desc' }, take: 10 })
-        ]);
+        const investorAddress = String(address);
 
-        const pool = await prisma.pool.findUnique({ where: { poolAddress: String(poolAddress) } });
-        const share = pool?.revenueShare || 15;
+        // 1. Get all investments from DB
+        const investments = await prisma.investment.findMany({
+            where: { investor: investorAddress }
+        });
 
-        const activity = [
-            ...investments.map(i => ({ 
-                id: `inv-${i.id}`, 
-                type: 'invest', 
-                user: `${i.investor.slice(0, 6)}...${i.investor.slice(-4)}`, 
-                amount: i.amount, 
-                timestamp: i.createdAt 
-            })),
-            ...revenue.map(r => ({ 
-                id: `rev-${r.id}`, 
-                type: 'yield', 
-                user: 'Oracle Dispatch', 
-                amount: r.amount * (share / 100), 
-                timestamp: r.createdAt 
-            }))
-        ].sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+        const totalInvested = investments.reduce((sum, i) => sum + i.amount, 0);
 
-        res.json({ success: true, activity });
+        // 2. Calculate historical earned yield based on revenue events for invested pools
+        let totalEarned = 0;
+        const investedPoolAddrs = [...new Set(investments.map(i => i.poolAddress))];
+        
+        const pools = await prisma.pool.findMany({
+            where: { poolAddress: { in: investedPoolAddrs } }
+        });
+
+        for (const pool of pools) {
+            const poolEvents = await prisma.revenueEvent.findMany({
+                where: { poolAddress: pool.poolAddress!, processed: true }
+            });
+            const userPrincipal = investments
+                .filter(i => i.poolAddress === pool.poolAddress)
+                .reduce((sum, i) => sum + i.amount, 0);
+            
+            const shareRatio = userPrincipal / pool.fundingTarget;
+            const poolYield = poolEvents.reduce((sum, e) => sum + (e.amount * (pool.revenueShare / 100)), 0);
+            
+            totalEarned += poolYield * shareRatio;
+        }
+
+        res.json({
+            success: true,
+            totalInvested,
+            totalEarned,
+            poolCount: investedPoolAddrs.length
+        });
     } catch (error) {
         console.error(error);
-        res.status(500).json({ error: "Failed to fetch activity" });
+        res.status(500).json({ error: "Failed to fetch investor stats" });
     }
 });
 
-// FAUCET: Mint 1,000 Mock USDT to the requesting wallet (dev/testnet only)
-const USDT_ADDRESS = "0xBdab08C6d27cb6C5aa751Bc512cbe998F9EB9fbE";
-const MOCK_USDT_ABI = [
-    "function mint(address to, uint256 amount) external"
-];
-
-app.post("/api/faucet", async (req: express.Request, res: express.Response) => {
+app.get("/api/pool-activity", async (req, res) => {
     try {
-        const { walletAddress } = req.body;
-        if (!walletAddress || !walletAddress.startsWith("0x")) {
-            res.status(400).json({ error: "Invalid wallet address." });
-            return;
+        const { poolAddress } = req.query;
+        const investments = await prisma.investment.findMany({
+            where: { poolAddress: String(poolAddress) },
+            orderBy: { createdAt: "desc" },
+            take: 10
+        });
+        const revenue = await prisma.revenueEvent.findMany({
+            where: { poolAddress: String(poolAddress), processed: true },
+            orderBy: { createdAt: "desc" },
+            take: 10
+        });
+
+        const activity = [
+            ...investments.map(i => ({
+                id: i.id,
+                type: 'investment',
+                user: i.investor.slice(0, 6) + '...' + i.investor.slice(-4),
+                amount: i.amount,
+                timestamp: i.createdAt
+            })),
+            ...revenue.map(r => ({
+                id: r.id,
+                type: 'yield',
+                user: 'Oracle Dispatch',
+                amount: r.amount,
+                timestamp: r.createdAt
+            }))
+        ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+        res.json({ success: true, activity });
+    } catch (error) {
+        res.status(500).json({ error: "Failed to fetch pool activity" });
+    }
+});
+
+// Faucet for Test USDT
+app.post("/api/faucet", async (req, res) => {
+    try {
+        const { address, walletAddress } = req.body;
+        const targetAddress = address || walletAddress;
+        
+        if (!targetAddress) {
+            return res.status(400).json({ error: "Address is required" });
         }
 
-        const provider = new ethers.JsonRpcProvider("https://data-seed-prebsc-1-s1.binance.org:8545/");
-        const signer = new ethers.Wallet(process.env.PRIVATE_KEY as string, provider);
-        const usdt = new ethers.Contract(USDT_ADDRESS, MOCK_USDT_ABI, signer);
-
-        const amount = ethers.parseUnits("1000", 18);
-        const tx = await usdt["mint"](walletAddress, amount) as ethers.TransactionResponse;
-        const txHash = tx.hash ?? "pending";
+        const provider = new ethers.JsonRpcProvider(process.env.RPC_URL);
+        const wallet = new ethers.Wallet(process.env.PRIVATE_KEY!, provider);
+        const usdtAbi = ["function mint(address to, uint256 amount) external"];
+        const usdt = new ethers.Contract(process.env.STABLECOIN_ADDRESS!, usdtAbi, wallet);
+        const tx = await (usdt as any).mint(targetAddress, ethers.parseUnits("1000", 18));
         await tx.wait();
-
-        res.json({ success: true, txHash, amount: "1000 Mock USDT" });
-    } catch (error: any) {
-        console.error("Faucet error:", error);
-        res.status(500).json({ error: "Faucet failed: " + error.message });
+        res.json({ success: true, txHash: tx.hash });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: "Faucet failed" });
     }
 });
 
 app.listen(PORT, () => {
-    console.log(`Backend server is running on http://localhost:${PORT}`);
+    console.log(`Backend running on port ${PORT}`);
     startOracle();
 });

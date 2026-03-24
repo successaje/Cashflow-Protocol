@@ -13,6 +13,7 @@
 - [Live Deployments (BSC Testnet)](#-live-deployments-bsc-testnet)
 - [Architecture & Tech Stack](#-architecture--tech-stack)
 - [Local Development Setup](#-local-development-setup)
+- [Testing the Lifecycle](#-testing-the-full-lifecycle-end-to-end)
 - [License](#-license)
 
 ---
@@ -118,9 +119,10 @@ To test the complete workflow from creation to yield claiming on the live BSC Te
 1. **Connect & Get Funds**: Open the frontend, connect your wallet to BSC Testnet. Go to the Explore page, select any pool, and click the **"Get 1,000 Mock USDT"** Faucet button.
 2. **Create a Pool**: Navigate to the **Business Dashboard** and fill out the "Create New Pool" form. Confirm the transaction to deploy your pool via the Factory contract.
 3. **Invest**: Go to the **Explore** page, find your newly created pool, and click "Invest Now". Enter an amount, approve the USDT, and confirm the deposit transaction.
-4. **Submit Revenue**: Go back to the **Business Dashboard**. Find your pool under "Active Live Pools" and enter a revenue amount (e.g., 5000), then click "Deposit Monthly Revenue".
-5. **Oracle Processing**: Wait up to 1 minute. The backend cron job (Oracle) will detect the revenue event, approve the stablecoin, and trigger `depositRevenue()` on your pool contract automatically.
-6. **Claim Yield**: Navigate to the **Investor Dashboard**. You will see your token balance and the live "Est. Yield Pending". Click the **Claim** button to withdraw your stablecoins directly from the smart contract!
+4. **Submit Revenue**: Go back to the **Business Dashboard**. Find your pool under "Active Live Pools" and enter a revenue amount (e.g., 5000), then click **"Submit"**.
+5. **Withdraw Capital**: Once funding progress moves, you can click **"Withdraw Raised Funds"** on the Business Dashboard to pull liquidity into your operations.
+6. **Oracle Processing**: Wait up to 1 minute. The backend cron job (Oracle) will detect any revenue submissions, approve the stablecoin, and trigger `depositRevenue()` on your pool contract automatically.
+7. **Claim Yield**: Navigate to the **Investor Dashboard**. You will see your token balance and the live "Claimable Yield". Click the **Claim** button to withdraw your stablecoins directly from the smart contract!
 
 ---
 

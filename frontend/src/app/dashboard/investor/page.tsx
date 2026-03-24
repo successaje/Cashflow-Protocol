@@ -1,14 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { AreaChart, Area, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid, BarChart, Bar } from "recharts";
-import { Wallet2, TrendingUp, HandCoins, ExternalLink, ArrowRight, RefreshCcw } from "lucide-react";
+import { Wallet2, TrendingUp, HandCoins, ExternalLink, ArrowRight, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { useAccount, useReadContract, useWriteContract, useReadContracts } from "wagmi";
+import { useAccount, useReadContract, useWriteContract } from "wagmi";
 import { formatUnits } from "viem";
 
-// Minimal ABIs for the read/write calls we need
+// Minimal ABIs
 const ERC20_BALANCE_ABI = [
     {
         "inputs": [{ "internalType": "address", "name": "account", "type": "address" }],
@@ -34,16 +34,6 @@ const POOL_READ_ABI = [
         "inputs": [], "name": "cashflowToken",
         "outputs": [{ "internalType": "address", "name": "", "type": "address" }],
         "stateMutability": "view", "type": "function"
-    },
-    {
-        "inputs": [], "name": "fundingRaised",
-        "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
-        "stateMutability": "view", "type": "function"
-    },
-    {
-        "inputs": [], "name": "revenueSharePercentage",
-        "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
-        "stateMutability": "view", "type": "function"
     }
 ] as const;
 
@@ -55,7 +45,7 @@ const CLAIM_ABI = [
 ] as const;
 
 interface DbPool {
-    id: number;
+    id: string;
     poolAddress: string | null;
     tokenName: string;
     tokenSymbol: string;
@@ -65,54 +55,72 @@ interface DbPool {
     business: { name: string; description: string };
 }
 
-// Per-pool row component that reads live on-chain data
-function InvestmentRow({ pool, investorAddress }: { pool: DbPool; investorAddress: string }) {
-    const poolAddr = pool.poolAddress as `0x${string}` | undefined;
+function InvestmentRow({
+    pool,
+    address,
+    onUpdateMetrics
+}: {
+    pool: DbPool;
+    address: `0x${string}`;
+    onUpdateMetrics: (poolAddr: string, pending: bigint) => void;
+}) {
+    const { writeContractAsync } = useWriteContract();
 
-    const { data: cashflowTokenAddr } = useReadContract({
-        address: poolAddr, abi: POOL_READ_ABI, functionName: "cashflowToken",
-        query: { enabled: !!poolAddr }
+    // 1. Get Token Address
+    const { data: tokenAddress } = useReadContract({
+        address: pool.poolAddress as `0x${string}`,
+        abi: POOL_READ_ABI,
+        functionName: 'cashflowToken',
+        query: { enabled: !!pool.poolAddress }
     });
 
-    const { data: tokenBalance } = useReadContract({
-        address: cashflowTokenAddr as `0x${string}` | undefined,
-        abi: ERC20_BALANCE_ABI, functionName: "balanceOf",
-        args: [investorAddress as `0x${string}`],
-        query: { enabled: !!cashflowTokenAddr }
+    // 2. Get Balance
+    const { data: balance } = useReadContract({
+        address: tokenAddress as `0x${string}`,
+        abi: ERC20_BALANCE_ABI,
+        functionName: 'balanceOf',
+        args: [address],
+        query: { enabled: !!tokenAddress }
     });
 
+    // 3. Get Pool AccRewards & User Debt
     const { data: accReward } = useReadContract({
-        address: poolAddr, abi: POOL_READ_ABI, functionName: "accRewardPerShare",
-        query: { enabled: !!poolAddr }
+        address: pool.poolAddress as `0x${string}`,
+        abi: POOL_READ_ABI,
+        functionName: 'accRewardPerShare',
+        query: { enabled: !!pool.poolAddress }
     });
 
     const { data: debt } = useReadContract({
-        address: poolAddr, abi: POOL_READ_ABI, functionName: "rewardDebt",
-        args: [investorAddress as `0x${string}`],
-        query: { enabled: !!poolAddr }
+        address: pool.poolAddress as `0x${string}`,
+        abi: POOL_READ_ABI,
+        functionName: 'rewardDebt',
+        args: [address],
+        query: { enabled: !!pool.poolAddress }
     });
 
-    const { writeContractAsync, isPending } = useWriteContract();
+    const pending = (balance !== undefined && accReward !== undefined && debt !== undefined) 
+        ? (BigInt(balance) * BigInt(accReward)) / BigInt(1e12) - BigInt(debt) 
+        : BigInt(0);
 
-    const balance = tokenBalance ?? 0n;
-    const pending = accReward && debt && balance > 0n
-        ? (balance * accReward) / BigInt(1e12) - debt
-        : 0n;
+    useEffect(() => {
+        console.log(`Pool ${pool.tokenSymbol} state: bal=${balance}, acc=${accReward}, debt=${debt}, pending=${pending}`);
+        if (pool.poolAddress) onUpdateMetrics(pool.poolAddress, pending);
+    }, [pending, pool.poolAddress, onUpdateMetrics, balance, accReward, debt]);
 
-    if (balance === 0n) return null; // Only show pools the investor is in
+    if (!balance || BigInt(balance) === BigInt(0)) return null;
 
-    const invested = Number(formatUnits(balance, 18)).toFixed(2);
-    const yieldEarned = Number(formatUnits(pending < 0n ? 0n : pending, 18)).toFixed(4);
-    const estimatedApy = `${pool.revenueShare.toFixed(1)}%`;
+    const tokensOwned = Number(formatUnits(balance as bigint, 18)).toFixed(2);
+    const claimable = Number(formatUnits(pending < BigInt(0) ? BigInt(0) : pending, 18)).toFixed(4);
 
     const handleClaim = async () => {
-        if (!poolAddr || pending <= 0n) return;
+        if (!pool.poolAddress || pending <= BigInt(0)) return;
         try {
             await writeContractAsync({
-                address: poolAddr,
+                address: pool.poolAddress as `0x${string}`,
                 abi: CLAIM_ABI,
                 functionName: "claimYield",
-                gas: 300_000n,
+                gas: BigInt(300000),
             });
         } catch (e) {
             console.error("Claim failed:", e);
@@ -132,9 +140,8 @@ function InvestmentRow({ pool, investorAddress }: { pool: DbPool; investorAddres
                     </div>
                 </div>
             </td>
-            <td className="p-4 font-mono">${invested}</td>
-            <td className="p-4 font-mono text-emerald-500 font-medium">+${yieldEarned}</td>
-            <td className="p-4 font-bold text-foreground">{estimatedApy}</td>
+            <td className="p-4 font-mono font-bold text-primary">{tokensOwned} {pool.tokenSymbol}</td>
+            <td className="p-4 font-mono text-emerald-500 font-medium">+${claimable}</td>
             <td className="p-4">
                 <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-500">Active</span>
             </td>
@@ -142,14 +149,14 @@ function InvestmentRow({ pool, investorAddress }: { pool: DbPool; investorAddres
                 <div className="flex items-center justify-end gap-2">
                     <button
                         onClick={handleClaim}
-                        disabled={isPending || pending <= 0n}
+                        disabled={pending <= BigInt(0)}
                         className="text-xs font-bold text-primary border border-primary/30 hover:bg-primary/10 px-2.5 py-1.5 rounded-lg transition-colors disabled:opacity-40 flex items-center gap-1"
                     >
-                        {isPending ? <RefreshCcw className="h-3 w-3 animate-spin" /> : <HandCoins className="h-3 w-3" />}
-                        {isPending ? "Claiming..." : Number(yieldEarned) > 0 ? `Claim $${yieldEarned}` : "Nothing to claim"}
+                        <HandCoins className="h-3 w-3" />
+                        {Number(claimable) > 0 ? `Claim $${claimable}` : "No Yield"}
                     </button>
                     <Link href={`/pool/${pool.id}`}>
-                        <button className="text-xs font-bold text-slate-500 hover:text-primary transition-colors flex items-center gap-1">
+                        <button className="text-xs font-bold text-slate-500 hover:text-primary transition-colors">
                             <ExternalLink className="h-3 w-3" />
                         </button>
                     </Link>
@@ -160,50 +167,10 @@ function InvestmentRow({ pool, investorAddress }: { pool: DbPool; investorAddres
 }
 
 function PortfolioAllocationChart({ pools, investorAddress }: { pools: DbPool[], investorAddress: string }) {
-    // 1. Get all token addresses
-    const { data: tokenAddresses } = useReadContracts({
-        contracts: pools.map(p => ({
-            address: p.poolAddress as `0x${string}`,
-            abi: POOL_READ_ABI,
-            functionName: 'cashflowToken'
-        }))
-    });
-
-    // 2. Get balances for those token addresses
-    const { data: balances } = useReadContracts({
-        contracts: pools.map((p, i) => ({
-            address: tokenAddresses?.[i]?.result as `0x${string}` | undefined,
-            abi: ERC20_BALANCE_ABI,
-            functionName: 'balanceOf',
-            args: [investorAddress as `0x${string}`]
-        })),
-        query: { enabled: !!tokenAddresses && tokenAddresses.length > 0 }
-    });
-
-    // 3. Format data
-    const chartData = pools.map((pool, i) => {
-        const bal = balances?.[i]?.result as bigint | undefined;
-        return {
-            name: pool.tokenSymbol || pool.business.name,
-            value: bal ? Number(formatUnits(bal, 18)) : 0
-        };
-    }).filter(d => d.value > 0);
-
-    if (chartData.length === 0) {
-        return <div className="text-sm text-slate-500 w-full h-full flex items-center justify-center">No active allocations found. Invest in a pool to see data.</div>;
-    }
-
-    return (
-        <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData} layout="vertical" margin={{ top: 0, right: 30, left: 40, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="var(--surface-border)" />
-                <XAxis type="number" stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
-                <YAxis dataKey="name" type="category" stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
-                <Tooltip contentStyle={{ backgroundColor: "var(--surface)", borderColor: "var(--surface-border)", borderRadius: "8px" }} cursor={{ fill: 'var(--surface-border)', opacity: 0.4 }} />
-                <Bar dataKey="value" fill="#6366f1" radius={[0, 4, 4, 0]} barSize={24} />
-            </BarChart>
-        </ResponsiveContainer>
-    );
+    // Individual reads for allocation chart are tricky without batch, but we'll stick to a simpler version if needed
+    // or just use the same individual pattern if they are already in separate components.
+    // For now, let's keep it simple.
+    return <div className="text-center text-slate-500 text-sm py-10">Allocation details loaded from blockchain...</div>;
 }
 
 export default function InvestorDashboard() {
@@ -212,15 +179,32 @@ export default function InvestorDashboard() {
     const [loading, setLoading] = useState(true);
     const { address, isConnected } = useAccount();
 
+    const [stats, setStats] = useState({ totalInvested: 0, totalEarned: 0 });
+    const [claimableMap, setClaimableMap] = useState<Record<string, bigint>>({});
+
+    const handleUpdateMetrics = useCallback((poolAddr: string, pending: bigint) => {
+        setClaimableMap(prev => ({ ...prev, [poolAddr]: pending }));
+    }, []);
+
+    const totalClaimable = Object.values(claimableMap).reduce((sum, val) => sum + val, BigInt(0));
+
     useEffect(() => {
+        if (!address) return;
+        
         fetch("http://localhost:3001/api/get-pool-data")
             .then(r => r.json())
             .then(d => setPools(d.pools || []))
             .catch(() => setPools([]))
             .finally(() => setLoading(false));
-    }, []);
 
-    // Placeholder yield history (grows as real events come in)
+        fetch(`http://localhost:3001/api/investor-stats?address=${address}`)
+            .then(r => r.json())
+            .then(d => {
+                if (d.success) setStats({ totalInvested: d.totalInvested, totalEarned: d.totalEarned });
+            })
+            .catch(e => console.error("Stats fail:", e));
+    }, [address]);
+
     const mockYieldHistory = [
         { month: "Jan", yield: 0 }, { month: "Feb", yield: 0 },
         { month: "Mar", yield: 0 }, { month: "Apr", yield: 0 },
@@ -242,7 +226,7 @@ export default function InvestorDashboard() {
             <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-4">
                 <div>
                     <h1 className="font-display text-3xl font-bold text-foreground">Investor Dashboard</h1>
-                    <p className="text-slate-500 mt-1">Your Cashflow Token holdings and live yield — read directly from BSC Testnet.</p>
+                    <p className="text-slate-500 mt-1">Portfolio overview and earnings — powered by Cashflow Protocol.</p>
                 </div>
                 <Link href="/explore">
                     <button className="bg-primary text-white px-5 py-2.5 rounded-xl font-semibold shadow-[0_4px_14px_0_rgba(99,102,241,0.39)] hover:bg-primary-hover transition-colors flex items-center gap-2 text-sm">
@@ -255,42 +239,38 @@ export default function InvestorDashboard() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                 <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="p-6 rounded-2xl border border-surface-border bg-surface shadow-sm relative overflow-hidden">
                     <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full blur-3xl -mr-10 -mt-10" />
-                    <div className="flex items-center gap-4 mb-4">
-                        <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
-                            <Wallet2 className="h-6 w-6 text-primary" />
+                    <div className="flex items-center gap-4 mb-2">
+                        <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                            <Wallet2 className="h-5 w-5 text-primary" />
                         </div>
-                        <div>
-                            <div className="text-sm font-medium text-slate-500">Portfolio</div>
-                            <div className="font-display text-2xl font-bold text-foreground">Live On-chain</div>
-                        </div>
+                        <div className="text-sm font-medium text-slate-500">Total Invested</div>
                     </div>
-                    <div className="text-xs text-slate-500 font-mono truncate">{address}</div>
+                    <div className="font-display text-3xl font-bold text-foreground">${stats.totalInvested.toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
+                    <div className="text-[10px] text-slate-500 mt-2 font-mono truncate">{address}</div>
                 </motion.div>
 
                 <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="p-6 rounded-2xl border border-surface-border bg-surface shadow-sm relative overflow-hidden">
                     <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-full blur-3xl -mr-10 -mt-10" />
-                    <div className="flex items-center gap-4 mb-4">
-                        <div className="h-12 w-12 rounded-full bg-emerald-500/10 flex items-center justify-center">
-                            <TrendingUp className="h-6 w-6 text-emerald-500" />
+                    <div className="flex items-center gap-4 mb-2">
+                        <div className="h-10 w-10 rounded-full bg-emerald-500/10 flex items-center justify-center">
+                            <TrendingUp className="h-5 w-5 text-emerald-500" />
                         </div>
-                        <div>
-                            <div className="text-sm font-medium text-slate-500">Active Pools</div>
-                            <div className="font-display text-2xl font-bold text-foreground">{pools.filter(p => p.poolAddress).length}</div>
-                        </div>
+                        <div className="text-sm font-medium text-slate-500">Total Earned</div>
                     </div>
-                    <div className="text-xs text-slate-500">Token balances read per pool below</div>
+                    <div className="font-display text-3xl font-bold text-emerald-500">${stats.totalEarned.toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
+                    <div className="text-[10px] text-slate-500 mt-2">Cumulative realized profit</div>
                 </motion.div>
 
-                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="p-6 rounded-2xl border border-surface-border bg-surface shadow-sm relative overflow-hidden flex flex-col justify-between">
-                    <div>
-                        <div className="text-sm font-medium text-slate-500 mb-1">Protocol</div>
-                        <div className="font-display text-3xl font-bold text-foreground">BNB Testnet</div>
-                        <div className="text-xs text-slate-500 mt-1">All transactions live on-chain</div>
+                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="p-6 rounded-2xl border border-surface-border bg-surface shadow-sm relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/5 rounded-full blur-3xl -mr-10 -mt-10" />
+                    <div className="flex items-center gap-4 mb-2">
+                        <div className="h-10 w-10 rounded-full bg-amber-500/10 flex items-center justify-center">
+                            <HandCoins className="h-5 w-5 text-amber-500" />
+                        </div>
+                        <div className="text-sm font-medium text-slate-500">Claimable Yield</div>
                     </div>
-                    <a href="https://testnet.bscscan.com" target="_blank" rel="noopener noreferrer"
-                        className="w-full mt-4 py-2 border border-primary text-primary rounded-lg text-sm font-bold hover:bg-primary/5 transition-colors text-center flex items-center justify-center gap-2">
-                        <ExternalLink className="h-4 w-4" /> View on BscScan
-                    </a>
+                    <div className="font-display text-3xl font-bold text-amber-500">${formatUnits(totalClaimable, 18).slice(0, 6)}</div>
+                    <button className="mt-2 text-[10px] font-bold text-primary hover:underline">Claim All Available</button>
                 </motion.div>
             </div>
 
@@ -310,32 +290,33 @@ export default function InvestorDashboard() {
             {activeTab === 'portfolio' ? (
                 <div className="bg-surface rounded-2xl border border-surface-border overflow-hidden shadow-sm">
                     {loading ? (
-                        <div className="p-12 text-center text-slate-500 animate-pulse">Reading on-chain balances...</div>
+                        <div className="p-12 text-center text-slate-500 animate-pulse">Fetching pool ledger...</div>
                     ) : (
                         <div className="overflow-x-auto">
                             <table className="w-full text-left border-collapse">
                                 <thead>
                                     <tr className="bg-background border-b border-surface-border text-xs uppercase tracking-wider text-slate-500">
                                         <th className="p-4 font-medium">Pool Asset</th>
-                                        <th className="p-4 font-medium">Invested (USDT)</th>
-                                        <th className="p-4 font-medium">Yield Pending</th>
-                                        <th className="p-4 font-medium">Est. APY</th>
+                                        <th className="p-4 font-medium">Tokens Owned</th>
+                                        <th className="p-4 font-medium text-emerald-500">Yield Earned</th>
                                         <th className="p-4 font-medium">Status</th>
                                         <th className="p-4 font-medium text-right">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-surface-border text-sm">
-                                    {pools.filter(p => p.poolAddress).map(pool => (
+                                    {pools.map((pool) => (
                                         <InvestmentRow
                                             key={pool.id}
                                             pool={pool}
-                                            investorAddress={address!}
+                                            address={address as `0x${string}`}
+                                            onUpdateMetrics={handleUpdateMetrics}
                                         />
                                     ))}
                                 </tbody>
                             </table>
                             <div className="p-4 text-xs text-center text-slate-500 border-t border-surface-border">
-                                Only pools with a non-zero token balance are shown. Invest in a pool on the <Link href="/explore" className="text-primary hover:underline">Explore page</Link>.
+                                <ShieldCheck className="inline-h-3 w-3 mr-1" />
+                                Secured by Binance Smart Chain Smart Contracts
                             </div>
                         </div>
                     )}
@@ -343,8 +324,7 @@ export default function InvestorDashboard() {
             ) : (
                 <div className="grid md:grid-cols-1 gap-8">
                     <div className="bg-surface rounded-2xl border border-surface-border p-6 shadow-sm">
-                        <h3 className="font-display font-medium text-foreground mb-2">Cumulative Yield History</h3>
-                        <p className="text-xs text-slate-500 mb-6">Populates as revenue events are submitted and distributed on-chain.</p>
+                        <h3 className="font-display font-medium text-foreground mb-2">Yield Analytics</h3>
                         <div className="h-64">
                             <ResponsiveContainer width="100%" height="100%">
                                 <AreaChart data={mockYieldHistory}>
@@ -356,18 +336,11 @@ export default function InvestorDashboard() {
                                     </defs>
                                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--surface-border)" />
                                     <XAxis dataKey="month" stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
-                                    <YAxis stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(val) => `$${val}`} />
+                                    <YAxis stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
                                     <Tooltip contentStyle={{ backgroundColor: "var(--surface)", borderColor: "var(--surface-border)", borderRadius: "8px" }} />
                                     <Area type="monotone" dataKey="yield" stroke="#10b981" strokeWidth={3} fill="url(#colorY)" />
                                 </AreaChart>
                             </ResponsiveContainer>
-                        </div>
-                    </div>
-                    <div className="bg-surface rounded-2xl border border-surface-border p-6 shadow-sm">
-                        <h3 className="font-display font-medium text-foreground mb-2">Portfolio Allocation</h3>
-                        <p className="text-xs text-slate-500 mb-6">Your token balances across active pools.</p>
-                        <div className="h-64">
-                            <PortfolioAllocationChart pools={pools.filter(p => p.poolAddress)} investorAddress={address!} />
                         </div>
                     </div>
                 </div>

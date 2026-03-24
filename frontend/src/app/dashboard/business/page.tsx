@@ -40,6 +40,26 @@ const FACTORY_ABI = [
 // Hardcoded Mock Factory Address for BNB Testnet
 const FACTORY_ADDRESS = "0x7D3165C15690C5d51C4CEF975d2836c99237B3E3" as `0x${string}`;
 
+const POOL_WRITE_ABI = [
+    {
+        "inputs": [],
+        "name": "withdrawRaisedFunds",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    }
+] as const;
+
+const POOL_READ_ABI = [
+    {
+        "inputs": [],
+        "name": "fundingRaised",
+        "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+        "stateMutability": "view",
+        "type": "function"
+    }
+] as const;
+
 export default function BusinessDashboard() {
     const [activeTab, setActiveTab] = useState('overview');
     const [showCreateFlow, setShowCreateFlow] = useState(false);
@@ -88,7 +108,23 @@ export default function BusinessDashboard() {
         }
     };
     const { writeContractAsync: deployPool, data: txHash } = useWriteContract();
+    const { writeContractAsync: withdrawFunds } = useWriteContract();
     const { isLoading: isDeploying, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
+
+    const handleWithdraw = async (poolAddress: string) => {
+        try {
+            await withdrawFunds({
+                address: poolAddress as `0x${string}`,
+                abi: POOL_WRITE_ABI,
+                functionName: 'withdrawRaisedFunds',
+                gas: BigInt(300000)
+            });
+            alert("Withdrawal transaction sent! Check your wallet.");
+        } catch (e) {
+            console.error("Withdraw fail:", e);
+            alert("Withdrawal failed. Are you the business owner?");
+        }
+    };
 
     const handleCreatePool = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -273,7 +309,20 @@ export default function BusinessDashboard() {
                                                     </div>
                                                 </div>
                                             </div>
-                                            <span className="bg-emerald-500/10 text-emerald-500 text-xs font-bold px-2 py-1 rounded uppercase tracking-wider">Live</span>
+                                            <span className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-bold px-2 py-1 rounded uppercase tracking-wider">Live</span>
+                                        </div>
+
+                                        <div className="mb-4">
+                                            <div className="flex justify-between text-[10px] font-bold text-slate-500 uppercase mb-1">
+                                                <span>Funding Progress</span>
+                                                <span>{pool.fundingTarget > 0 ? ((pool.mockRaised || 0) / pool.fundingTarget * 100).toFixed(0) : 0}%</span>
+                                            </div>
+                                            <div className="h-2 w-full bg-background rounded-full overflow-hidden border border-surface-border">
+                                                <div 
+                                                    className="h-full bg-primary rounded-full transition-all" 
+                                                    style={{ width: `${Math.min(100, (pool.mockRaised || 0) / pool.fundingTarget * 100)}%` }} 
+                                                />
+                                            </div>
                                         </div>
 
                                         <div className="space-y-4 mb-6">
@@ -309,9 +358,16 @@ export default function BusinessDashboard() {
                                                     onClick={() => handleSubmitRevenue(pool.id, pool.poolAddress, revenueAmounts[pool.id] || "")}
                                                     className="bg-primary/10 text-primary hover:bg-primary/20 transition-colors px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-1"
                                                 >
-                                                    <Banknote className="h-4 w-4" /> Submit Revenue
+                                                    <Banknote className="h-4 w-4" /> Submit
                                                 </button>
                                             </div>
+
+                                            <button
+                                                onClick={() => handleWithdraw(pool.poolAddress)}
+                                                className="w-full py-2.5 bg-background border border-surface-border hover:border-primary/50 text-foreground text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-2"
+                                            >
+                                                <Banknote className="h-4 w-4 text-emerald-500" /> Withdraw Raised Funds
+                                            </button>
                                         </div>
                                     </div>
                                 ))}
