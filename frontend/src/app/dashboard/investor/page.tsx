@@ -5,7 +5,7 @@ import { AreaChart, Area, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianG
 import { Wallet2, TrendingUp, HandCoins, ExternalLink, ArrowRight, RefreshCcw } from "lucide-react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { useAccount, useReadContract, useWriteContract } from "wagmi";
+import { useAccount, useReadContract, useWriteContract, useReadContracts } from "wagmi";
 import { formatUnits } from "viem";
 
 // Minimal ABIs for the read/write calls we need
@@ -156,6 +156,53 @@ function InvestmentRow({ pool, investorAddress }: { pool: DbPool; investorAddres
                 </div>
             </td>
         </tr>
+    );
+}
+
+function PortfolioAllocationChart({ pools, investorAddress }: { pools: DbPool[], investorAddress: string }) {
+    // 1. Get all token addresses
+    const { data: tokenAddresses } = useReadContracts({
+        contracts: pools.map(p => ({
+            address: p.poolAddress as `0x${string}`,
+            abi: POOL_READ_ABI,
+            functionName: 'cashflowToken'
+        }))
+    });
+
+    // 2. Get balances for those token addresses
+    const { data: balances } = useReadContracts({
+        contracts: pools.map((p, i) => ({
+            address: tokenAddresses?.[i]?.result as `0x${string}` | undefined,
+            abi: ERC20_BALANCE_ABI,
+            functionName: 'balanceOf',
+            args: [investorAddress as `0x${string}`]
+        })),
+        query: { enabled: !!tokenAddresses && tokenAddresses.length > 0 }
+    });
+
+    // 3. Format data
+    const chartData = pools.map((pool, i) => {
+        const bal = balances?.[i]?.result as bigint | undefined;
+        return {
+            name: pool.tokenSymbol || pool.business.name,
+            value: bal ? Number(formatUnits(bal, 18)) : 0
+        };
+    }).filter(d => d.value > 0);
+
+    if (chartData.length === 0) {
+        return <div className="text-sm text-slate-500 w-full h-full flex items-center justify-center">No active allocations found. Invest in a pool to see data.</div>;
+    }
+
+    return (
+        <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={chartData} layout="vertical" margin={{ top: 0, right: 30, left: 40, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="var(--surface-border)" />
+                <XAxis type="number" stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
+                <YAxis dataKey="name" type="category" stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
+                <Tooltip contentStyle={{ backgroundColor: "var(--surface)", borderColor: "var(--surface-border)", borderRadius: "8px" }} cursor={{ fill: 'var(--surface-border)', opacity: 0.4 }} />
+                <Bar dataKey="value" fill="#6366f1" radius={[0, 4, 4, 0]} barSize={24} />
+            </BarChart>
+        </ResponsiveContainer>
     );
 }
 
@@ -314,6 +361,13 @@ export default function InvestorDashboard() {
                                     <Area type="monotone" dataKey="yield" stroke="#10b981" strokeWidth={3} fill="url(#colorY)" />
                                 </AreaChart>
                             </ResponsiveContainer>
+                        </div>
+                    </div>
+                    <div className="bg-surface rounded-2xl border border-surface-border p-6 shadow-sm">
+                        <h3 className="font-display font-medium text-foreground mb-2">Portfolio Allocation</h3>
+                        <p className="text-xs text-slate-500 mb-6">Your token balances across active pools.</p>
+                        <div className="h-64">
+                            <PortfolioAllocationChart pools={pools.filter(p => p.poolAddress)} investorAddress={address!} />
                         </div>
                     </div>
                 </div>
