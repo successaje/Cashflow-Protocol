@@ -127,7 +127,7 @@ function InvestmentRow({ pool, investorAddress }: { pool: DbPool; investorAddres
                         {pool.tokenSymbol.charAt(0)}
                     </div>
                     <div>
-                        <div className="font-bold text-foreground">{pool.business?.name || pool.tokenName}</div>
+                        <div className="font-bold text-foreground">{pool.tokenName}</div>
                         <div className="text-xs text-slate-500">{pool.tokenSymbol}</div>
                     </div>
                 </div>

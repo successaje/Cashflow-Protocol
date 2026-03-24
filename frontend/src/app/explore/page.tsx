@@ -305,7 +305,7 @@ function PoolCard({ pool, i }: { pool: Pool, i: number }) {
                             </div>
                             <div>
                                 <h3 className="font-display text-xl font-bold text-foreground group-hover:text-[#F3BA2F] transition-colors leading-tight">
-                                    {pool.business.name}
+                                    {pool.tokenName}
                                 </h3>
                                 <span className="text-[10px] font-medium text-slate-500 uppercase tracking-widest">{pool.mockIndustry}</span>
                             </div>

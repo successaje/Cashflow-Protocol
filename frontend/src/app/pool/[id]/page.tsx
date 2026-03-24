@@ -125,7 +125,7 @@ export default function PoolDetail() {
                         setPool({
                             id: found.id,
                             business: {
-                                name: found.business?.name || found.tokenName,
+                                name: found.tokenName || found.business?.name,
                                 industry: found.business?.industry || "Real World Asset",
                                 location: found.business?.location || "On-chain",
                                 founded: found.business?.founded || "2024",

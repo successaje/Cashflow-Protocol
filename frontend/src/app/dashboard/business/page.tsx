@@ -267,7 +267,7 @@ export default function BusinessDashboard() {
                                                     <Building2 className="h-5 w-5 text-[#F3BA2F]" />
                                                 </div>
                                                 <div>
-                                                    <div className="font-bold text-foreground">{pool.business?.name || pool.tokenName}</div>
+                                                     <div className="font-bold text-foreground">{pool.tokenName}</div>
                                                     <div className="text-xs text-slate-500 font-mono">
                                                         {pool.poolAddress ? `${pool.poolAddress.slice(0, 6)}...${pool.poolAddress.slice(-4)}` : "Deploying..."}
                                                     </div>
