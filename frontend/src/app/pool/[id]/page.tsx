@@ -136,7 +136,7 @@ export default function PoolDetail() {
                             revenueShare: found.revenueShare,
                             durationDays: found.durationDays,
                             tokenSymbol: found.tokenSymbol,
-                            rating: "A (Low Risk)",
+                            rating: found.riskScore || "B (Medium Risk)",
                             contractAddress: found.poolAddress || "Pending",
                             poolAddress: found.poolAddress,
                         });
