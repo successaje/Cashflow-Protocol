@@ -5,6 +5,16 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Search, Filter, ShieldCheck, Flame, ChevronRight, Building2, TrendingUp, Clock, SortDesc } from "lucide-react";
 import Link from "next/link";
 import { useTheme } from "next-themes";
+import { useReadContract } from "wagmi";
+import { formatUnits } from "viem";
+
+const POOL_ABI = [{
+    "inputs": [],
+    "name": "fundingRaised",
+    "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+    "stateMutability": "view",
+    "type": "function"
+}] as const;
 
 interface Pool {
     id: string;
@@ -18,7 +28,7 @@ interface Pool {
         name: string;
         description: string;
     };
-    mockRisk?: string;
+    riskScore?: string;
     mockIndustry?: string;
     mockRaised?: number;
     createdAt?: Date;
@@ -43,9 +53,9 @@ export default function ExplorePage() {
                     const data = await res.json();
                     const fetchedPools = (data.pools || []).map((p: any, i: number) => ({
                         ...p,
-                        mockRisk: i % 2 === 0 ? "Low Risk" : "High Risk",
+                        riskScore: p.riskScore || "B (Medium Risk)",
                         mockIndustry: i % 3 === 0 ? "Retail" : i % 3 === 1 ? "SaaS" : "Logistics",
-                        mockRaised: p.fundingTarget * (Math.random() * 0.8 + 0.1), // Mock 10-90% funded
+                        mockRaised: p.fundingTarget * (Math.random() * 0.8 + 0.1), // Mock fallback
                         createdAt: new Date(Date.now() - i * 86400000) // Mock different days
                     }));
                     setPools(fetchedPools);
@@ -78,15 +88,20 @@ export default function ExplorePage() {
             id: "3", poolAddress: "0x789", tokenName: "Agri Chain", tokenSymbol: "AGRI",
             fundingTarget: 500000, revenueShare: 12, durationDays: 730, mockRaised: 120000,
             business: { name: "Green Harvest", description: "Scaling sustainable supply chain operations." },
-            mockRisk: "Low Risk", mockIndustry: "Agriculture", createdAt: new Date(Date.now() - 172800000)
+            riskScore: "B (Medium Risk)", mockIndustry: "Agriculture", createdAt: new Date(Date.now() - 172800000)
         }
     ];
 
     // Apply Search, Filters, and Sort
-    let processedPools = pools
-        .filter(p => p.business.name.toLowerCase().includes(searchQuery.toLowerCase()))
-        .filter(p => industryFilter === "All" ? true : p.mockIndustry === industryFilter)
-        .filter(p => riskFilter === "All" ? true : p.mockRisk === riskFilter)
+    const processedPools = pools
+        .filter(p => industryFilter === "All" || p.mockIndustry === industryFilter)
+        .filter(p => {
+            if (riskFilter === "All") return true;
+            if (riskFilter === "Low Risk") return p.riskScore?.includes("Low") || p.riskScore?.includes("Excellent");
+            if (riskFilter === "High Risk") return p.riskScore?.includes("Medium") || p.riskScore?.includes("New");
+            return true;
+        })
+        .filter(p => !searchQuery || p.business.name.toLowerCase().includes(searchQuery.toLowerCase()) || p.tokenSymbol.toLowerCase().includes(searchQuery.toLowerCase()))
         .sort((a, b) => {
             if (sortBy === "newest") return (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0);
             if (sortBy === "highest-yield") return b.revenueShare - a.revenueShare;
@@ -247,111 +262,117 @@ export default function ExplorePage() {
                 </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                    {processedPools.map((pool, i) => {
-                        const progress = ((pool.mockRaised || 0) / pool.fundingTarget) * 100;
-                        const isFullyFunded = progress >= 100;
-
-                        return (
-                            <Link key={pool.id} href={`/pool/${pool.id}`}>
-                                <motion.div
-                                    initial={{ opacity: 0, y: 20 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    transition={{ delay: Math.min(i * 0.1, 0.5), duration: 0.4 }}
-                                    className="group flex flex-col justify-between h-full rounded-3xl border border-surface-border bg-surface transition-all hover:-translate-y-1 hover:border-[#F3BA2F]/50 hover:shadow-[0_12px_40px_rgba(243,186,47,0.08)] cursor-pointer overflow-hidden p-[1px]"
-                                >
-                                    <div className="bg-background/80 h-full rounded-[23px] flex flex-col p-6 relative">
-                                        {/* Success Ribbon */}
-                                        {isFullyFunded && (
-                                            <div className="absolute -right-12 top-6 bg-emerald-500 text-white text-xs font-bold py-1 w-40 text-center rotate-45 shadow-lg z-10">
-                                                FUNDED!
-                                            </div>
-                                        )}
-
-                                        {/* Header */}
-                                        <div className="flex justify-between items-start mb-4">
-                                            <div className="flex gap-3 items-center">
-                                                <div className="h-10 w-10 rounded-lg bg-surface flex items-center justify-center border border-surface-border transition-colors group-hover:bg-[#F3BA2F]/10 group-hover:border-[#F3BA2F]/20">
-                                                    <Building2 className={`h-5 w-5 ${isFullyFunded ? 'text-emerald-500' : 'text-[#F3BA2F]'}`} />
-                                                </div>
-                                                <div>
-                                                    <h3 className="font-display text-xl font-bold text-foreground group-hover:text-[#F3BA2F] transition-colors leading-tight">
-                                                        {pool.business.name}
-                                                    </h3>
-                                                    <span className="text-[10px] font-medium text-slate-500 uppercase tracking-widest">{pool.mockIndustry}</span>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <p className="text-slate-500 text-sm mb-6 line-clamp-2 h-10">
-                                            {pool.business.description}
-                                        </p>
-
-                                        {/* Funding Progress */}
-                                        <div className="mb-6 bg-surface rounded-xl p-4 border border-surface-border">
-                                            <div className="flex justify-between text-xs mb-2">
-                                                <span className="text-slate-500">Target: <span className="font-medium text-foreground">${pool.fundingTarget.toLocaleString()}</span></span>
-                                                <span className={`${isFullyFunded ? 'text-emerald-500 font-bold' : 'text-[#F3BA2F] font-bold'}`}>
-                                                    {progress.toFixed(0)}%
-                                                </span>
-                                            </div>
-                                            <div className="h-2 w-full bg-background rounded-full overflow-hidden border border-surface-border">
-                                                <div
-                                                    className={`h-full rounded-full ${isFullyFunded ? 'bg-emerald-500' : 'bg-gradient-to-r from-[#F3BA2F] to-amber-500'}`}
-                                                    style={{ width: `${Math.min(progress, 100)}%` }}
-                                                />
-                                            </div>
-                                            <div className="text-[10px] mt-2 text-slate-500 text-right">
-                                                ${Math.floor(pool.mockRaised || 0).toLocaleString()} Raised
-                                            </div>
-                                        </div>
-
-                                        {/* Metrics Grid */}
-                                        <div className="grid grid-cols-2 gap-4 mt-auto">
-                                            <div className="flex items-center gap-2">
-                                                <div className="h-8 w-8 rounded-full bg-surface flex items-center justify-center">
-                                                    <TrendingUp className="h-4 w-4 text-emerald-500" />
-                                                </div>
-                                                <div>
-                                                    <div className="text-[10px] text-slate-500 uppercase">Exp. APY</div>
-                                                    <div className="font-display font-bold text-foreground">{pool.revenueShare * 1.5}%</div>
-                                                </div>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <div className="h-8 w-8 rounded-full bg-surface flex items-center justify-center">
-                                                    <Clock className="h-4 w-4 text-blue-500" />
-                                                </div>
-                                                <div>
-                                                    <div className="text-[10px] text-slate-500 uppercase">Duration</div>
-                                                    <div className="font-display font-bold text-foreground">{pool.durationDays}D</div>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        {/* Risk Badge */}
-                                        <div className="mt-6 pt-4 border-t border-surface-border flex justify-between items-center">
-                                            {pool.mockRisk?.includes("Low") ? (
-                                                <span className="flex items-center gap-1.5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-semibold px-2.5 py-1 rounded-full border border-emerald-500/20">
-                                                    <ShieldCheck className="h-3.5 w-3.5" /> {pool.mockRisk}
-                                                </span>
-                                            ) : (
-                                                <span className="flex items-center gap-1.5 bg-amber-500/10 text-amber-600 dark:text-amber-400 text-xs font-semibold px-2.5 py-1 rounded-full border border-amber-500/20">
-                                                    <Flame className="h-3.5 w-3.5" /> High Risk
-                                                </span>
-                                            )}
-
-                                            <button className={`flex items-center gap-1 text-sm font-bold transition-colors ${isFullyFunded ? 'text-emerald-500' : 'text-[#F3BA2F] group-hover:text-[#e0ab2b]'
-                                                }`}>
-                                                {isFullyFunded ? 'View Details' : 'Invest Now'} <ChevronRight className="h-4 w-4" />
-                                            </button>
-                                        </div>
-
-                                    </div>
-                                </motion.div>
-                            </Link>
-                        );
-                    })}
+                    {processedPools.map((pool, i) => (
+                        <PoolCard key={pool.id} pool={pool} i={i} />
+                    ))}
                 </div>
             )}
         </div>
     );
 }
+
+function PoolCard({ pool, i }: { pool: Pool, i: number }) {
+    const { data: fundingRaisedData } = useReadContract({
+        address: (pool.poolAddress as `0x${string}`) || "0x" + "1".repeat(40),
+        abi: POOL_ABI,
+        functionName: 'fundingRaised',
+        query: { enabled: !!pool.poolAddress }
+    });
+
+    const raised = fundingRaisedData ? Number(formatUnits(fundingRaisedData as bigint, 18)) : (pool.mockRaised || 0);
+    const progress = (raised / pool.fundingTarget) * 100;
+    const isFullyFunded = progress >= 100;
+
+    return (
+        <Link href={`/pool/${pool.id}`}>
+            <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: Math.min(i * 0.1, 0.5), duration: 0.4 }}
+                className="group flex flex-col justify-between h-full rounded-3xl border border-surface-border bg-surface transition-all hover:-translate-y-1 hover:border-[#F3BA2F]/50 hover:shadow-[0_12px_40px_rgba(243,186,47,0.08)] cursor-pointer overflow-hidden p-[1px]"
+            >
+                <div className="bg-background/80 h-full rounded-[23px] flex flex-col p-6 relative">
+                    {isFullyFunded && (
+                        <div className="absolute -right-12 top-6 bg-emerald-500 text-white text-xs font-bold py-1 w-40 text-center rotate-45 shadow-lg z-10">
+                            FUNDED!
+                        </div>
+                    )}
+
+                    <div className="flex justify-between items-start mb-4">
+                        <div className="flex gap-3 items-center">
+                            <div className="h-10 w-10 rounded-lg bg-surface flex items-center justify-center border border-surface-border transition-colors group-hover:bg-[#F3BA2F]/10 group-hover:border-[#F3BA2F]/20">
+                                <Building2 className={`h-5 w-5 ${isFullyFunded ? 'text-emerald-500' : 'text-[#F3BA2F]'}`} />
+                            </div>
+                            <div>
+                                <h3 className="font-display text-xl font-bold text-foreground group-hover:text-[#F3BA2F] transition-colors leading-tight">
+                                    {pool.business.name}
+                                </h3>
+                                <span className="text-[10px] font-medium text-slate-500 uppercase tracking-widest">{pool.mockIndustry}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <p className="text-slate-500 text-sm mb-6 line-clamp-2 h-10">
+                        {pool.business.description}
+                    </p>
+
+                    <div className="mb-6 bg-surface rounded-xl p-4 border border-surface-border">
+                        <div className="flex justify-between text-xs mb-2">
+                            <span className="text-slate-500">Target: <span className="font-medium text-foreground">${pool.fundingTarget.toLocaleString()}</span></span>
+                            <span className={`${isFullyFunded ? 'text-emerald-500 font-bold' : 'text-[#F3BA2F] font-bold'}`}>
+                                {progress.toFixed(0)}%
+                            </span>
+                        </div>
+                        <div className="h-2 w-full bg-background rounded-full overflow-hidden border border-surface-border">
+                            <div
+                                className={`h-full rounded-full ${isFullyFunded ? 'bg-emerald-500' : 'bg-gradient-to-r from-[#F3BA2F] to-amber-500'}`}
+                                style={{ width: `${Math.min(progress, 100)}%` }}
+                            />
+                        </div>
+                        <div className="text-[10px] mt-2 text-slate-500 text-right">
+                            ${Math.floor(raised).toLocaleString()} Raised
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4 mt-auto">
+                        <div className="flex items-center gap-2">
+                            <div className="h-8 w-8 rounded-full bg-surface flex items-center justify-center">
+                                <TrendingUp className="h-4 w-4 text-emerald-500" />
+                            </div>
+                            <div>
+                                <div className="text-[10px] text-slate-500 uppercase">Exp. APY</div>
+                                <div className="font-display font-bold text-foreground">{Math.round(pool.revenueShare * 1.5)}%</div>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <div className="h-8 w-8 rounded-full bg-surface flex items-center justify-center">
+                                <Clock className="h-4 w-4 text-blue-500" />
+                            </div>
+                            <div>
+                                <div className="text-[10px] text-slate-500 uppercase">Duration</div>
+                                <div className="font-display font-bold text-foreground">{pool.durationDays}D</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="mt-6 pt-4 border-t border-surface-border flex justify-between items-center">
+                        {pool.riskScore?.includes("Low") || pool.riskScore?.includes("Excellent") ? (
+                            <span className="flex items-center gap-1.5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-semibold px-2.5 py-1 rounded-full border border-emerald-500/20">
+                                <ShieldCheck className="h-3.5 w-3.5" /> {pool.riskScore}
+                            </span>
+                        ) : (
+                            <span className="flex items-center gap-1.5 bg-amber-500/10 text-amber-600 dark:text-amber-400 text-xs font-semibold px-2.5 py-1 rounded-full border border-amber-500/20">
+                                <Flame className="h-3.5 w-3.5" /> {pool.riskScore || "Medium Risk"}
+                            </span>
+                        )}
+
+                        <button className={`flex items-center gap-1 text-sm font-bold transition-colors ${isFullyFunded ? 'text-emerald-500' : 'text-[#F3BA2F] group-hover:text-[#e0ab2b]'}`}>
+                            {isFullyFunded ? 'View Details' : 'Invest Now'} <ChevronRight className="h-4 w-4" />
+                        </button>
+                    </div>
+                </div>
+            </motion.div>
+        </Link>
+    );
+}
+

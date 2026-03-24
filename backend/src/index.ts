@@ -69,8 +69,30 @@ app.get("/api/get-pool-data", async (req, res) => {
         const pools = await prisma.pool.findMany({
             include: { business: true }
         });
-        res.json({ success: true, pools });
+
+        // Compute risk score based on recorded revenue events
+        const poolsWithRisk = await Promise.all(pools.map(async (pool: any) => {
+            if (!pool.poolAddress) return { ...pool, riskScore: "Unrated (Pending)" };
+            
+            const events = await prisma.revenueEvent.findMany({
+                where: { poolAddress: pool.poolAddress }
+            });
+            
+            let riskScore = "B (Medium Risk)";
+            if (events.length === 0) {
+                riskScore = "C (New / Unproven)";
+            } else if (events.length >= 5) {
+                riskScore = "A+ (Excellent)";
+            } else if (events.length >= 2) {
+                riskScore = "A (Low Risk)";
+            }
+            
+            return { ...pool, riskScore };
+        }));
+
+        res.json({ success: true, pools: poolsWithRisk });
     } catch (error) {
+        console.error(error);
         res.status(500).json({ error: "Failed to fetch pools" });
     }
 });
