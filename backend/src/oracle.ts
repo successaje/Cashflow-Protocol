@@ -15,7 +15,7 @@ const stablecoinAbi = [
     "function approve(address spender, uint256 amount) external returns (bool)"
 ];
 
-const STABLECOIN_ADDRESS = process.env.STABLECOIN_ADDRESS || "0x0000000000000000000000000000000000000000";
+const STABLECOIN_ADDRESS = process.env.STABLECOIN_ADDRESS || "0xBdab08C6d27cb6C5aa751Bc512cbe998F9EB9fbE";
 
 export const startOracle = () => {
     // Run every minute for MVP demonstration purposes
