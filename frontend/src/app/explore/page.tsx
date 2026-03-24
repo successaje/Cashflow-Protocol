@@ -48,7 +48,8 @@ export default function ExplorePage() {
     useEffect(() => {
         const fetchPools = async () => {
             try {
-                const res = await fetch("http://localhost:3001/api/get-pool-data");
+                const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001";
+                const res = await fetch(`${baseUrl}/api/get-pool-data`);
                 if (res.ok) {
                     const data = await res.json();
                     const fetchedPools = (data.pools || []).map((p: any, i: number) => ({

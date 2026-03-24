@@ -104,7 +104,8 @@ export default function PoolDetail() {
         if (!address || faucetStatus === "loading") return;
         setFaucetStatus("loading");
         try {
-            const res = await fetch("http://localhost:3001/api/faucet", {
+            const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001";
+            const res = await fetch(`${baseUrl}/api/faucet`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ walletAddress: address }),
@@ -122,7 +123,8 @@ export default function PoolDetail() {
     useEffect(() => {
         const fetchPool = async () => {
             try {
-                const res = await fetch("http://localhost:3001/api/get-pool-data");
+                const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001";
+                const res = await fetch(`${baseUrl}/api/get-pool-data`);
                 if (res.ok) {
                     const data = await res.json();
                     const found = (data.pools || []).find((p: any) => String(p.id) === String(id));
@@ -163,7 +165,8 @@ export default function PoolDetail() {
         const fetchActivity = async () => {
             try {
                 // 1. Fetch Consolidated Activity from Backend
-                const res = await fetch(`http://localhost:3001/api/pool-activity?poolAddress=${pool.poolAddress}`);
+                const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001";
+                const res = await fetch(`${baseUrl}/api/pool-activity?poolAddress=${pool.poolAddress}`);
                 const data = await res.json();
                 
                 if (data.success) {
@@ -246,7 +249,8 @@ export default function PoolDetail() {
 
             // 4. Record investment in backend for the Activity Feed
             try {
-                await fetch('http://localhost:3001/api/record-investment', {
+                const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001";
+                await fetch(`${baseUrl}/api/record-investment`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({

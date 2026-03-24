@@ -79,7 +79,8 @@ export default function BusinessDashboard() {
     useEffect(() => {
         if (!address) return;
         setPoolsLoading(true);
-        fetch("http://localhost:3001/api/get-pool-data")
+        const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001";
+        fetch(`${baseUrl}/api/get-pool-data`)
             .then(r => r.json())
             .then(d => {
                 const filtered = (d.pools || []).filter((p: any) =>
@@ -94,7 +95,8 @@ export default function BusinessDashboard() {
     const handleSubmitRevenue = async (poolId: number, poolAddress: string, amount: string) => {
         if (!amount || isNaN(Number(amount))) return;
         try {
-            const res = await fetch("http://localhost:3001/api/submit-revenue", {
+            const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001";
+            const res = await fetch(`${baseUrl}/api/submit-revenue`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ poolAddress, amount: Number(amount) })
@@ -159,7 +161,8 @@ export default function BusinessDashboard() {
             const newPoolAddress = logs[0]?.args?.poolAddress as string | undefined;
 
             // 4. Save all metadata to our Node.js backend so it appears in the marketplace
-            await fetch('http://localhost:3001/api/create-pool', {
+            const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001";
+            await fetch(`${baseUrl}/api/create-pool`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

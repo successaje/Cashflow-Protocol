@@ -191,13 +191,15 @@ export default function InvestorDashboard() {
     useEffect(() => {
         if (!address) return;
         
-        fetch("http://localhost:3001/api/get-pool-data")
+        const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001";
+
+        fetch(`${baseUrl}/api/get-pool-data`)
             .then(r => r.json())
             .then(d => setPools(d.pools || []))
             .catch(() => setPools([]))
             .finally(() => setLoading(false));
 
-        fetch(`http://localhost:3001/api/investor-stats?address=${address}`)
+        fetch(`${baseUrl}/api/investor-stats?address=${address}`)
             .then(r => r.json())
             .then(d => {
                 if (d.success) setStats({ totalInvested: d.totalInvested, totalEarned: d.totalEarned });
