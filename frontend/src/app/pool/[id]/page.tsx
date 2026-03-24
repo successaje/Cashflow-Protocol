@@ -8,7 +8,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { useAccount, useWriteContract, useWaitForTransactionReceipt, useReadContract } from 'wagmi';
-import { parseUnits } from 'viem';
+import { parseUnits, formatUnits } from 'viem';
 
 const mockHistoryData = [
     { month: "Jan", revenue: 12000, yield: 1800 },
@@ -86,6 +86,14 @@ export default function PoolDetail() {
 
     // The pool's smart contract address (from DB after deploy)
     const poolContractAddress = (pool?.poolAddress || ("0x" + "1".repeat(40))) as `0x${string}`;
+
+    const { data: fundingRaisedData } = useReadContract({
+        address: poolContractAddress,
+        abi: POOL_ABI,
+        functionName: 'fundingRaised',
+        query: { enabled: poolContractAddress !== "0x" + "1".repeat(40) }
+    });
+
 
     const handleFaucet = async () => {
         if (!address || faucetStatus === "loading") return;
@@ -179,7 +187,8 @@ export default function PoolDetail() {
         );
     }
 
-    const progress = (pool.raised / pool.fundingTarget) * 100;
+    const raised = fundingRaisedData ? Number(formatUnits(fundingRaisedData as bigint, 18)) : pool.raised;
+    const progress = (raised / pool.fundingTarget) * 100;
     const isFullyFunded = progress >= 100;
 
     const handleInvest = async () => {
@@ -438,9 +447,11 @@ export default function PoolDetail() {
                     <div className="sticky top-24 bg-surface border border-surface-border rounded-3xl p-6 md:p-8 shadow-[0_8px_40px_rgba(0,0,0,0.08)]">
                         <h3 className="font-display text-lg font-bold text-foreground mb-4">Funding Progress</h3>
 
+                        {/* Assuming `useReadContract` is defined earlier in the component, e.g., `const { data: fundingRaised } = useReadContract(...)` */}
+                        {/* And `raised` is derived from `fundingRaised` and formatted, e.g., `const raised = fundingRaised ? Number(formatUnits(fundingRaised, 6)) : 0;` */}
                         <div className="mb-6">
-                            <div className="flex justify-between items-end mb-2">
-                                <span className="font-display text-3xl font-bold text-foreground">${pool.raised.toLocaleString()}</span>
+                            <div className="flex justify-between items-end">
+                                <span className="font-display font-medium text-xl text-foreground">${raised.toLocaleString()}</span>
                                 <span className="text-slate-500 text-sm font-medium mb-1">of ${pool.fundingTarget.toLocaleString()}</span>
                             </div>
                             <div className="h-3 w-full bg-background rounded-full overflow-hidden border border-surface-border">

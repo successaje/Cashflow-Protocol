@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Building2, Plus, ArrowRight, ShieldCheck, Banknote, RefreshCcw, Activity, CheckCircle2 } from "lucide-react";
 import { useAccount, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
