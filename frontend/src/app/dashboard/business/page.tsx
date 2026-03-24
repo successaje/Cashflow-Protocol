@@ -148,7 +148,7 @@ export default function BusinessDashboard() {
                 abi: FACTORY_ABI,
                 functionName: 'createPool',
                 args: [formData.name, symbol, targetAmount, durationDays, revShare],
-                gas: 5_000_000n,
+                gas: BigInt(5000000),
             });
 
             // 2. Wait for the transaction to be included in a block

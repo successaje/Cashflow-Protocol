@@ -229,7 +229,7 @@ export default function PoolDetail() {
                 abi: ERC20_ABI,
                 functionName: 'approve',
                 args: [poolContractAddress, amountInWei],
-                gas: 300_000n,
+                gas: BigInt(300000),
             });
 
             // 2. Wait for wallet confirmation before depositing
@@ -241,7 +241,7 @@ export default function PoolDetail() {
                 abi: POOL_ABI,
                 functionName: 'invest',
                 args: [amountInWei],
-                gas: 500_000n,
+                gas: BigInt(500000),
             });
 
             // 4. Record investment in backend for the Activity Feed
