@@ -131,6 +131,62 @@ app.get("/api/revenue-history", async (req, res) => {
     }
 });
 
+// API: Record a new investment in a pool
+app.post("/api/record-investment", async (req, res) => {
+    try {
+        const { poolAddress, investor, amount } = req.body;
+        const investment = await prisma.investment.create({
+            data: {
+                poolAddress,
+                investor,
+                amount: Number(amount)
+            }
+        });
+        res.json({ success: true, investment });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: "Failed to record investment" });
+    }
+});
+
+// API: Get combined activity for a pool (Investments + Revenue)
+app.get("/api/pool-activity", async (req, res) => {
+    try {
+        const { poolAddress } = req.query;
+        if (!poolAddress) return res.status(400).json({ error: "poolAddress required" });
+
+        const [investments, revenue] = await Promise.all([
+            prisma.investment.findMany({ where: { poolAddress: String(poolAddress) }, orderBy: { createdAt: 'desc' }, take: 10 }),
+            prisma.revenueEvent.findMany({ where: { poolAddress: String(poolAddress) }, orderBy: { createdAt: 'desc' }, take: 10 })
+        ]);
+
+        const pool = await prisma.pool.findUnique({ where: { poolAddress: String(poolAddress) } });
+        const share = pool?.revenueShare || 15;
+
+        const activity = [
+            ...investments.map(i => ({ 
+                id: `inv-${i.id}`, 
+                type: 'invest', 
+                user: `${i.investor.slice(0, 6)}...${i.investor.slice(-4)}`, 
+                amount: i.amount, 
+                timestamp: i.createdAt 
+            })),
+            ...revenue.map(r => ({ 
+                id: `rev-${r.id}`, 
+                type: 'yield', 
+                user: 'Oracle Dispatch', 
+                amount: r.amount * (share / 100), 
+                timestamp: r.createdAt 
+            }))
+        ].sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+        res.json({ success: true, activity });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: "Failed to fetch activity" });
+    }
+});
+
 // FAUCET: Mint 1,000 Mock USDT to the requesting wallet (dev/testnet only)
 const USDT_ADDRESS = "0xBdab08C6d27cb6C5aa751Bc512cbe998F9EB9fbE";
 const MOCK_USDT_ABI = [

@@ -19,12 +19,7 @@ const mockHistoryData = [
     { month: "Jun", revenue: 26500, yield: 3975 },
 ];
 
-const mockActivityFeed = [
-    { id: 1, type: 'invest', user: '0x4f...8a2', amount: 5000, time: '2 mins ago' },
-    { id: 2, type: 'invest', user: '0x91...2c1', amount: 1500, time: '1 hour ago' },
-    { id: 3, type: 'yield', user: 'Protocol', amount: 3975, time: '3 days ago' },
-    { id: 4, type: 'invest', user: '0x1c...99f', amount: 10000, time: '4 days ago' },
-];
+// No longer using mockActivityFeed, fetching real data now.
 
 // Mock ABIs for MVP Integration
 const ERC20_ABI = [
@@ -64,6 +59,15 @@ const POOL_ABI = [
         "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
         "stateMutability": "view",
         "type": "function"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            { "indexed": true, "internalType": "address", "name": "investor", "type": "address" },
+            { "indexed": false, "internalType": "uint256", "name": "amount", "type": "uint256" }
+        ],
+        "name": "InvestmentMade",
+        "type": "event"
     }
 ] as const;
 
@@ -80,6 +84,7 @@ export default function PoolDetail() {
     const [loading, setLoading] = useState(true);
     const [faucetStatus, setFaucetStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
     const [revenueHistory, setRevenueHistory] = useState<any[]>([]);
+    const [activityFeed, setActivityFeed] = useState<any[]>([]);
 
     const { writeContractAsync: writeApprove } = useWriteContract();
     const { writeContractAsync: writeDeposit } = useWriteContract();
@@ -154,20 +159,40 @@ export default function PoolDetail() {
     // Fetch real revenue events for the financials chart once pool loads
     useEffect(() => {
         if (!pool?.poolAddress || pool.poolAddress === "Pending") return;
-        fetch(`http://localhost:3001/api/revenue-history?poolAddress=${pool.poolAddress}`)
-            .then(r => r.json())
-            .then(d => {
-                const events = d.events || [];
-                if (events.length > 0) {
-                    const chartData = events.map((e: any, i: number) => ({
-                        month: `Rev ${i + 1}`,
-                        revenue: e.amount,
-                        yield: Math.round(e.amount * ((pool.revenueShare ?? 15) / 100)),
+
+        const fetchActivity = async () => {
+            try {
+                // 1. Fetch Consolidated Activity from Backend
+                const res = await fetch(`http://localhost:3001/api/pool-activity?poolAddress=${pool.poolAddress}`);
+                const data = await res.json();
+                
+                if (data.success) {
+                    const formattedActivity = data.activity.map((a: any) => ({
+                        ...a,
+                        time: new Date(a.timestamp).toLocaleDateString() + ' ' + new Date(a.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
                     }));
-                    setRevenueHistory(chartData);
+                    setActivityFeed(formattedActivity);
+
+                    // 2. Fetch Historical Revenue for Charts
+                    const revEvents = data.activity.filter((a: any) => a.type === 'yield').reverse();
+                    if (revEvents.length > 0) {
+                        const chartData = revEvents.map((e: any, i: number) => ({
+                            month: `Rev ${i + 1}`,
+                            revenue: e.amount / (pool.revenueShare / 100),
+                            yield: e.amount,
+                        }));
+                        setRevenueHistory(chartData);
+                    }
                 }
-            })
-            .catch(() => { });
+            } catch (error) {
+                console.error("Activity fetch failed:", error);
+            }
+        };
+
+        fetchActivity();
+        // Poll for updates every 30 seconds
+        const interval = setInterval(fetchActivity, 30000);
+        return () => clearInterval(interval);
     }, [pool]);
 
     if (loading) {
@@ -218,6 +243,21 @@ export default function PoolDetail() {
                 args: [amountInWei],
                 gas: 500_000n,
             });
+
+            // 4. Record investment in backend for the Activity Feed
+            try {
+                await fetch('http://localhost:3001/api/record-investment', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        poolAddress: poolContractAddress,
+                        investor: address,
+                        amount: Number(investAmount)
+                    })
+                });
+            } catch (e) {
+                console.warn("Failed to record investment in backend:", e);
+            }
 
             setTxStatus("success");
             setTimeout(() => setTxStatus("idle"), 5000);
@@ -417,7 +457,9 @@ export default function PoolDetail() {
                                 </div>
 
                                 <div className="space-y-4">
-                                    {mockActivityFeed.map((event) => (
+                                    {activityFeed.length === 0 ? (
+                                        <div className="text-center py-10 text-slate-500 text-sm">No activity recorded yet for this pool.</div>
+                                    ) : activityFeed.map((event) => (
                                         <div key={event.id} className="flex items-center justify-between p-4 bg-background border border-surface-border rounded-2xl hover:border-primary/50 transition-colors">
                                             <div className="flex items-center gap-4">
                                                 <div className={`h-10 w-10 rounded-full flex items-center justify-center ${event.type === 'yield' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-primary/10 text-primary'}`}>

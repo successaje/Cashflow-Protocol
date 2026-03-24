@@ -38,3 +38,11 @@ model RevenueEvent {
   processed   Boolean  @default(false)
   createdAt   DateTime @default(now())
 }
+
+model Investment {
+  id          String   @id @default(uuid())
+  poolAddress   String
+  investor    String
+  amount      Float
+  createdAt   DateTime @default(now())
+}
