@@ -68,11 +68,11 @@ export const startOracle = () => {
                 const amountWei = ethers.parseUnits(shareAmount.toFixed(18), 18);
 
                 // Oracle must approve the pool to spend its stablecoin
-                const approveTx = await stablecoin.approve(poolAddress, amountWei);
+                const approveTx = await (stablecoin as any).approve(poolAddress, amountWei);
                 await approveTx.wait();
 
                 const poolContract = new ethers.Contract(poolAddress, poolAbi, wallet);
-                const tx = await poolContract.depositRevenue(amountWei);
+                const tx = await (poolContract as any).depositRevenue(amountWei);
                 await tx.wait();
 
                 console.log(`Success! Transaction Hash: ${tx.hash}`);

@@ -3,7 +3,7 @@ import cors from "cors";
 import { PrismaClient } from "@prisma/client";
 import dotenv from "dotenv";
 import { ethers } from "ethers";
-import { startOracle } from "./oracle";
+import { startOracle } from "./oracle.js";
 
 dotenv.config();
 
