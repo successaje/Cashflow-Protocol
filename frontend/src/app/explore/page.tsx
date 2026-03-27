@@ -28,6 +28,10 @@ interface Pool {
         name: string;
         description: string;
     };
+    verificationStatus?: string;
+    website?: string | null;
+    twitter?: string | null;
+    stakedAmount?: number;
     riskScore?: string;
     mockIndustry?: string;
     mockRaised?: number;
@@ -305,10 +309,20 @@ function PoolCard({ pool, i }: { pool: Pool, i: number }) {
                                 <Building2 className={`h-5 w-5 ${isFullyFunded ? 'text-emerald-500' : 'text-[#F3BA2F]'}`} />
                             </div>
                             <div>
-                                <h3 className="font-display text-xl font-bold text-foreground group-hover:text-[#F3BA2F] transition-colors leading-tight">
-                                    {pool.tokenName}
-                                </h3>
-                                <span className="text-[10px] font-medium text-slate-500 uppercase tracking-widest">{pool.mockIndustry}</span>
+                                <div className="flex items-center gap-2">
+                                    <h3 className="font-display text-xl font-bold text-foreground group-hover:text-[#F3BA2F] transition-colors leading-tight">
+                                        {pool.tokenName}
+                                    </h3>
+                                    {pool.verificationStatus === 'VERIFIED' && (
+                                        <div className="bg-emerald-500/10 p-0.5 rounded-full" title="Verified Business">
+                                            <ShieldCheck className="h-4 w-4 text-emerald-500" />
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <span className="text-[10px] font-medium text-slate-500 uppercase tracking-widest">{pool.mockIndustry}</span>
+                                    {pool.twitter && <span className="text-[10px] text-primary">@ {pool.twitter}</span>}
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -347,11 +361,11 @@ function PoolCard({ pool, i }: { pool: Pool, i: number }) {
                         </div>
                         <div className="flex items-center gap-2">
                             <div className="h-8 w-8 rounded-full bg-surface flex items-center justify-center">
-                                <Clock className="h-4 w-4 text-blue-500" />
+                                <Building2 className="h-4 w-4 text-[#F3BA2F]" />
                             </div>
                             <div>
-                                <div className="text-[10px] text-slate-500 uppercase">Duration</div>
-                                <div className="font-display font-bold text-foreground">{pool.durationDays}D</div>
+                                <div className="text-[10px] text-slate-500 uppercase">Stake</div>
+                                <div className="font-display font-bold text-foreground">${(pool.stakedAmount || 0).toLocaleString()}</div>
                             </div>
                         </div>
                     </div>

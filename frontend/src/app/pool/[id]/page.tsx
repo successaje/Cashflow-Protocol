@@ -61,13 +61,15 @@ const POOL_ABI = [
         "type": "function"
     },
     {
-        "anonymous": false,
-        "inputs": [
-            { "indexed": true, "internalType": "address", "name": "investor", "type": "address" },
-            { "indexed": false, "internalType": "uint256", "name": "amount", "type": "uint256" }
-        ],
         "name": "InvestmentMade",
         "type": "event"
+    },
+    {
+        "inputs": [],
+        "name": "reportFraud",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
     }
 ] as const;
 
@@ -146,6 +148,10 @@ export default function PoolDetail() {
                             rating: found.riskScore || "B (Medium Risk)",
                             contractAddress: found.poolAddress || "Pending",
                             poolAddress: found.poolAddress,
+                            verificationStatus: found.verificationStatus,
+                            website: found.website,
+                            twitter: found.twitter,
+                            stakedAmount: found.stakedAmount
                         });
                     }
                 }
@@ -274,6 +280,22 @@ export default function PoolDetail() {
         }
     };
 
+    const handleReportFraud = async () => {
+        if (!confirm("Are you sure you want to report this pool for fraud? This will trigger a protocol-level dispute.")) return;
+        try {
+            await writeDeposit({ // reusing writeDeposit hook for reportFraud
+                address: poolContractAddress,
+                abi: POOL_ABI,
+                functionName: 'reportFraud',
+                gas: BigInt(200000),
+            });
+            alert("Fraud report submitted to the blockchain. The protocol admin will review the evidence.");
+        } catch (e) {
+            console.error("Report fraud fail:", e);
+            alert("Failed to report fraud. Check your wallet connection.");
+        }
+    };
+
     return (
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-12">
             <div className="flex items-center gap-2 mb-8 text-sm text-slate-500 font-medium">
@@ -304,10 +326,20 @@ export default function PoolDetail() {
                                 </div>
                                 <div className="flex flex-wrap items-center gap-4 text-sm text-slate-500 font-medium">
                                     <span className="uppercase tracking-wider">{pool.business.industry}</span>
+                                    {pool.website && (
+                                        <>
+                                            <span className="w-1.5 h-1.5 rounded-full bg-surface-border" />
+                                            <a href={pool.website} target="_blank" className="text-primary hover:underline">{pool.website.replace('https://', '')}</a>
+                                        </>
+                                    )}
+                                    {pool.twitter && (
+                                        <>
+                                            <span className="w-1.5 h-1.5 rounded-full bg-surface-border" />
+                                            <a href={`https://x.com/${pool.twitter}`} target="_blank" className="text-primary hover:underline">@{pool.twitter}</a>
+                                        </>
+                                    )}
                                     <span className="w-1.5 h-1.5 rounded-full bg-surface-border" />
                                     <span>{pool.business.location}</span>
-                                    <span className="w-1.5 h-1.5 rounded-full bg-surface-border" />
-                                    <span>Est. {pool.business.founded}</span>
                                 </div>
                             </div>
                         </div>
@@ -321,13 +353,16 @@ export default function PoolDetail() {
                                 <div className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1 flex items-center gap-1"><ArrowUpRight className="h-3.5 w-3.5" /> Est. APY</div>
                                 <div className="font-display text-xl font-bold text-[#F3BA2F]">{pool.revenueShare}%</div>
                             </div>
-                            <div className="bg-background rounded-2xl p-4 border border-surface-border">
-                                <div className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1 flex items-center gap-1"><Clock className="h-3.5 w-3.5" /> Duration</div>
-                                <div className="font-display text-xl font-bold text-foreground">{pool.durationDays} Days</div>
+                             <div className="bg-background rounded-2xl p-4 border border-surface-border relative overflow-hidden">
+                                <div className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1 flex items-center gap-1"><ShieldCheck className="h-3.5 w-3.5" /> Stake</div>
+                                <div className="font-display text-xl font-bold text-foreground">${(pool.stakedAmount || 0).toLocaleString()}</div>
+                                <div className="absolute -right-1 -bottom-1 opacity-10"><Building2 className="h-12 w-12" /></div>
                             </div>
                             <div className="bg-background rounded-2xl p-4 border border-surface-border">
-                                <div className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1 flex items-center gap-1"><Calendar className="h-3.5 w-3.5" /> Distro</div>
-                                <div className="font-display text-xl font-bold text-foreground">Monthly</div>
+                                <div className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1 flex items-center gap-1"><Calendar className="h-3.5 w-3.5" /> Status</div>
+                                <div className={`font-display text-sm font-bold uppercase tracking-widest ${pool.verificationStatus === 'VERIFIED' ? 'text-emerald-500' : 'text-amber-500'}`}>
+                                    {pool.verificationStatus || 'Pending'}
+                                </div>
                             </div>
                         </div>
 
@@ -392,11 +427,29 @@ export default function PoolDetail() {
                                     <li className="flex gap-4">
                                         <ShieldAlert className="h-6 w-6 text-[#F3BA2F] flex-shrink-0" />
                                         <div>
-                                            <div className="font-semibold text-foreground mb-1">Overcollateralized Physical Assets</div>
-                                            <div className="text-sm text-slate-500">The business has pledged physical inventory and real estate leases as a secondary backstop for investor capital.</div>
+                                            <div className="font-semibold text-foreground mb-1">Business Collateral Stake</div>
+                                            <div className="text-sm text-slate-500">The business has staked <strong>${(pool.stakedAmount || 0).toLocaleString()} USDT</strong> as collateral. This can be slashed by governance in case of verified fraud.</div>
                                         </div>
                                     </li>
                                 </ul>
+
+                                <div className="mt-10 p-6 bg-red-500/5 border border-red-500/20 rounded-2xl">
+                                    <div className="flex items-start gap-4">
+                                        <div className="h-10 w-10 bg-red-500/10 rounded-full flex items-center justify-center flex-shrink-0">
+                                            <ShieldAlert className="h-5 w-5 text-red-500" />
+                                        </div>
+                                        <div>
+                                            <h4 className="font-bold text-foreground">Investor Protection</h4>
+                                            <p className="text-xs text-slate-500 mt-1 mb-4">If you have evidence that this business is misreporting revenue or engaging in fraudulent activity, you can trigger a dispute.</p>
+                                            <button 
+                                                onClick={handleReportFraud}
+                                                className="text-xs font-bold text-red-500 hover:text-red-600 transition-colors flex items-center gap-1 border border-red-500/20 px-3 py-1.5 rounded-lg hover:bg-red-500/5"
+                                            >
+                                                Report Potential Fraud
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
                             </motion.div>
                         )}
 
@@ -471,14 +524,19 @@ export default function PoolDetail() {
                                                 </div>
                                                 <div>
                                                     <div className="font-medium text-foreground">{event.type === 'yield' ? 'Yield Distribution' : 'New Investment'}</div>
-                                                    <div className="text-xs font-mono text-slate-500">{event.user}</div>
+                                                    <div className="text-[10px] font-mono text-slate-500">{event.user}</div>
+                                                    {event.proofUrl && (
+                                                        <a href={event.proofUrl} target="_blank" className="text-[10px] text-primary hover:underline flex items-center gap-0.5 mt-1">
+                                                            <ExternalLink className="h-2 w-2" /> View Revenue Proof
+                                                        </a>
+                                                    )}
                                                 </div>
                                             </div>
                                             <div className="text-right">
                                                 <div className={`font-display font-bold ${event.type === 'yield' ? 'text-emerald-500' : 'text-foreground'}`}>
                                                     {event.type === 'yield' ? '+' : ''}${event.amount.toLocaleString()}
                                                 </div>
-                                                <div className="text-xs text-slate-500">{event.time}</div>
+                                                <div className="text-[10px] text-slate-500">{event.time}</div>
                                             </div>
                                         </div>
                                     ))}

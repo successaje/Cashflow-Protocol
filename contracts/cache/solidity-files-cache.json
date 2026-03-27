@@ -2,8 +2,8 @@
   "_format": "hh-sol-cache-2",
   "files": {
     "/Users/finisher/Documents/github/cashflow/contracts/contracts/CashflowPool.sol": {
-      "lastModificationDate": 1773776013507,
-      "contentHash": "e24cce6d63b90539aeffb586c38f399a",
+      "lastModificationDate": 1774609028150,
+      "contentHash": "db362d4f0967e07ff6c8275b47e36f39",
       "sourceName": "contracts/CashflowPool.sol",
       "solcConfig": {
         "version": "0.8.20",
@@ -495,8 +495,8 @@
       ]
     },
     "/Users/finisher/Documents/github/cashflow/contracts/contracts/CashflowPoolFactory.sol": {
-      "lastModificationDate": 1773776015711,
-      "contentHash": "bc9a3624eb51fa480eb1bb7230fd2a66",
+      "lastModificationDate": 1774609030199,
+      "contentHash": "748a4507d14cdb95eeb81f2f4f73a356",
       "sourceName": "contracts/CashflowPoolFactory.sol",
       "solcConfig": {
         "version": "0.8.20",
@@ -523,6 +523,8 @@
         }
       },
       "imports": [
+        "@openzeppelin/contracts/token/ERC20/IERC20.sol",
+        "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol",
         "./CashflowPool.sol"
       ],
       "versionPragmas": [

@@ -29,6 +29,7 @@ export interface CashflowPoolFactoryInterface extends Interface {
       | "allPools"
       | "createPool"
       | "getPoolsCount"
+      | "minStakePercentage"
       | "oracleAddress"
       | "owner"
       | "stablecoin"
@@ -42,10 +43,21 @@ export interface CashflowPoolFactoryInterface extends Interface {
   ): string;
   encodeFunctionData(
     functionFragment: "createPool",
-    values: [string, string, BigNumberish, BigNumberish, BigNumberish]
+    values: [
+      string,
+      string,
+      BigNumberish,
+      BigNumberish,
+      BigNumberish,
+      BigNumberish
+    ]
   ): string;
   encodeFunctionData(
     functionFragment: "getPoolsCount",
+    values?: undefined
+  ): string;
+  encodeFunctionData(
+    functionFragment: "minStakePercentage",
     values?: undefined
   ): string;
   encodeFunctionData(
@@ -65,6 +77,10 @@ export interface CashflowPoolFactoryInterface extends Interface {
     data: BytesLike
   ): Result;
   decodeFunctionResult(
+    functionFragment: "minStakePercentage",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
     functionFragment: "oracleAddress",
     data: BytesLike
   ): Result;
@@ -77,19 +93,22 @@ export namespace PoolCreatedEvent {
     poolAddress: AddressLike,
     businessAddress: AddressLike,
     tokenName: string,
-    tokenSymbol: string
+    tokenSymbol: string,
+    stakedAmount: BigNumberish
   ];
   export type OutputTuple = [
     poolAddress: string,
     businessAddress: string,
     tokenName: string,
-    tokenSymbol: string
+    tokenSymbol: string,
+    stakedAmount: bigint
   ];
   export interface OutputObject {
     poolAddress: string;
     businessAddress: string;
     tokenName: string;
     tokenSymbol: string;
+    stakedAmount: bigint;
   }
   export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
   export type Filter = TypedDeferredTopicFilter<Event>;
@@ -148,13 +167,16 @@ export interface CashflowPoolFactory extends BaseContract {
       _tokenSymbol: string,
       _fundingTarget: BigNumberish,
       _fundDurationDays: BigNumberish,
-      _revenueSharePercentage: BigNumberish
+      _revenueSharePercentage: BigNumberish,
+      _stakeAmount: BigNumberish
     ],
     [string],
     "nonpayable"
   >;
 
   getPoolsCount: TypedContractMethod<[], [bigint], "view">;
+
+  minStakePercentage: TypedContractMethod<[], [bigint], "view">;
 
   oracleAddress: TypedContractMethod<[], [string], "view">;
 
@@ -177,13 +199,17 @@ export interface CashflowPoolFactory extends BaseContract {
       _tokenSymbol: string,
       _fundingTarget: BigNumberish,
       _fundDurationDays: BigNumberish,
-      _revenueSharePercentage: BigNumberish
+      _revenueSharePercentage: BigNumberish,
+      _stakeAmount: BigNumberish
     ],
     [string],
     "nonpayable"
   >;
   getFunction(
     nameOrSignature: "getPoolsCount"
+  ): TypedContractMethod<[], [bigint], "view">;
+  getFunction(
+    nameOrSignature: "minStakePercentage"
   ): TypedContractMethod<[], [bigint], "view">;
   getFunction(
     nameOrSignature: "oracleAddress"
@@ -204,7 +230,7 @@ export interface CashflowPoolFactory extends BaseContract {
   >;
 
   filters: {
-    "PoolCreated(address,address,string,string)": TypedContractEvent<
+    "PoolCreated(address,address,string,string,uint256)": TypedContractEvent<
       PoolCreatedEvent.InputTuple,
       PoolCreatedEvent.OutputTuple,
       PoolCreatedEvent.OutputObject

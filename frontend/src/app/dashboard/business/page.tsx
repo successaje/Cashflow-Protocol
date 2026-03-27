@@ -16,7 +16,8 @@ const FACTORY_ABI = [
             { "internalType": "string", "name": "_tokenSymbol", "type": "string" },
             { "internalType": "uint256", "name": "_fundingTarget", "type": "uint256" },
             { "internalType": "uint256", "name": "_fundDurationDays", "type": "uint256" },
-            { "internalType": "uint256", "name": "_revenueSharePercentage", "type": "uint256" }
+            { "internalType": "uint256", "name": "_revenueSharePercentage", "type": "uint256" },
+            { "internalType": "uint256", "name": "_stakeAmount", "type": "uint256" }
         ],
         "name": "createPool",
         "outputs": [{ "internalType": "address", "name": "", "type": "address" }],
@@ -66,12 +67,13 @@ export default function BusinessDashboard() {
 
     // Form State
     const [formData, setFormData] = useState({
-        name: "", description: "", target: "", duration: "", revenueShare: ""
+        name: "", description: "", target: "", duration: "", revenueShare: "", website: "", twitter: "", stakeAmount: ""
     });
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [myPools, setMyPools] = useState<any[]>([]);
     const [poolsLoading, setPoolsLoading] = useState(true);
     const [revenueAmounts, setRevenueAmounts] = useState<Record<number, string>>({});
+    const [revenueProofs, setRevenueProofs] = useState<Record<number, string>>({});
 
     const publicClient = usePublicClient();
     const { address, isConnected } = useAccount();
@@ -99,7 +101,7 @@ export default function BusinessDashboard() {
             const res = await fetch(`${baseUrl}/api/submit-revenue`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ poolAddress, amount: Number(amount) })
+                body: JSON.stringify({ poolAddress, amount: Number(amount), proofUrl: revenueProofs[poolId] || "" })
             });
             if (res.ok) {
                 alert(`Revenue of $${amount} submitted for pool ${poolAddress}. The Oracle will push it on-chain.`);
@@ -143,13 +145,14 @@ export default function BusinessDashboard() {
             const targetAmount = parseUnits(formData.target || "0", 18);
             const durationDays = BigInt(formData.duration || "0");
             const revShare = BigInt(formData.revenueShare || "0");
+            const stakeAmount = parseUnits(formData.stakeAmount || "0", 18);
 
             // 1. Deploy child CashflowPool via the Factory on BSC Testnet
             const txHash = await deployPool({
                 address: FACTORY_ADDRESS,
                 abi: FACTORY_ABI,
                 functionName: 'createPool',
-                args: [formData.name, symbol, targetAmount, durationDays, revShare],
+                args: [formData.name, symbol, targetAmount, durationDays, revShare, stakeAmount],
                 gas: BigInt(5000000),
             });
 
@@ -169,12 +172,12 @@ export default function BusinessDashboard() {
                     businessAddress: address,
                     businessName: formData.name,
                     description: formData.description,
-                    poolAddress: newPoolAddress || txHash, // fallback to txHash if event parse fails
-                    tokenName: formData.name,
-                    tokenSymbol: symbol,
                     fundingTarget: Number(formData.target),
                     revenueShare: Number(formData.revenueShare),
                     durationDays: Number(formData.duration),
+                    website: formData.website,
+                    twitter: formData.twitter,
+                    stakedAmount: Number(formData.stakeAmount)
                 })
             });
 
@@ -252,11 +255,27 @@ export default function BusinessDashboard() {
                                     </div>
                                     <p className="text-xs text-slate-500 pt-1">This percentage of your ongoing gross revenue will be automatically directed to the smart contract.</p>
                                 </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-sm font-semibold text-foreground">Verification Website</label>
+                                    <input placeholder="https://downtownespresso.com" className="w-full bg-background border border-surface-border rounded-xl px-4 py-3 text-sm focus:border-primary outline-none" onChange={e => setFormData({ ...formData, website: e.target.value })} />
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-sm font-semibold text-foreground">Social (X / Twitter)</label>
+                                    <input placeholder="@DT_Espresso" className="w-full bg-background border border-surface-border rounded-xl px-4 py-3 text-sm focus:border-primary outline-none" onChange={e => setFormData({ ...formData, twitter: e.target.value })} />
+                                </div>
+
+                                <div className="col-span-1 md:col-span-2 space-y-2">
+                                    <label className="text-sm font-semibold text-foreground">Collateral Stake (USDT)</label>
+                                    <input required type="number" placeholder="5000" min="0" className="w-full bg-background border border-surface-border rounded-xl px-4 py-3 text-sm focus:border-primary outline-none" onChange={e => setFormData({ ...formData, stakeAmount: e.target.value })} />
+                                    <p className="text-xs text-slate-500 pt-1">Recommended: 10% of target. This stake acts as collateral to build investor trust.</p>
+                                </div>
                             </div>
 
                             <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 flex gap-3 text-sm text-primary">
                                 <ShieldCheck className="h-5 w-5 flex-shrink-0" />
-                                <p>By deploying, a unique <strong>CashflowToken (ERC20)</strong> contract will be minted on BNB Chain. It is immutable.</p>
+                                <p>By deploying, a unique <strong>CashflowToken (ERC20)</strong> contract will be minted and your stake will be locked as collateral.</p>
                             </div>
 
                             <button disabled={isSubmitting} type="submit" className="w-full bg-[#F3BA2F] hover:bg-[#e0ab2b] text-black font-bold py-4 rounded-xl flex justify-center items-center gap-2 transition-all shadow-md">
@@ -349,20 +368,28 @@ export default function BusinessDashboard() {
                                                     View on BscScan →
                                                 </a>
                                             )}
-                                            <div className="flex gap-2">
+                                            <div className="flex flex-col gap-2">
+                                                <div className="flex gap-2">
+                                                    <input
+                                                        type="number"
+                                                        placeholder="Revenue amount ($)"
+                                                        value={revenueAmounts[pool.id] || ""}
+                                                        onChange={e => setRevenueAmounts(prev => ({ ...prev, [pool.id]: e.target.value }))}
+                                                        className="flex-1 bg-background border border-surface-border rounded-xl px-3 py-2 text-sm focus:border-primary outline-none"
+                                                    />
+                                                    <button
+                                                        onClick={() => handleSubmitRevenue(pool.id, pool.poolAddress, revenueAmounts[pool.id] || "")}
+                                                        className="bg-primary/10 text-primary hover:bg-primary/20 transition-colors px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-1"
+                                                    >
+                                                        <Banknote className="h-4 w-4" /> Submit
+                                                    </button>
+                                                </div>
                                                 <input
-                                                    type="number"
-                                                    placeholder="Revenue amount ($)"
-                                                    value={revenueAmounts[pool.id] || ""}
-                                                    onChange={e => setRevenueAmounts(prev => ({ ...prev, [pool.id]: e.target.value }))}
-                                                    className="flex-1 bg-background border border-surface-border rounded-xl px-3 py-2 text-sm focus:border-primary outline-none"
+                                                    placeholder="Proof URL (e.g. POS report link)"
+                                                    value={revenueProofs[pool.id] || ""}
+                                                    onChange={e => setRevenueProofs(prev => ({ ...prev, [pool.id]: e.target.value }))}
+                                                    className="w-full bg-background border border-surface-border rounded-xl px-3 py-2 text-[10px] focus:border-primary outline-none"
                                                 />
-                                                <button
-                                                    onClick={() => handleSubmitRevenue(pool.id, pool.poolAddress, revenueAmounts[pool.id] || "")}
-                                                    className="bg-primary/10 text-primary hover:bg-primary/20 transition-colors px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-1"
-                                                >
-                                                    <Banknote className="h-4 w-4" /> Submit
-                                                </button>
                                             </div>
 
                                             <button

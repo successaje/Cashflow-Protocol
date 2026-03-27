@@ -19,22 +19,27 @@ model Business {
 }
 
 model Pool {
-  id              String   @id @default(uuid())
-  poolAddress     String?  @unique
-  businessId      String
-  tokenName       String
-  tokenSymbol     String
-  fundingTarget   Float
-  revenueShare    Float
-  durationDays    Int
-  createdAt       DateTime @default(now())
-  business        Business @relation(fields: [businessId], references: [id])
+  id                String   @id @default(uuid())
+  poolAddress       String?  @unique
+  businessId        String
+  tokenName         String
+  tokenSymbol       String
+  fundingTarget     Float
+  revenueShare      Float
+  durationDays      Int
+  verificationStatus String   @default("PENDING") // PENDING, VERIFIED, REJECTED, UNDER_REVIEW
+  website           String?
+  twitter           String?
+  stakedAmount      Float    @default(0)
+  createdAt         DateTime @default(now())
+  business          Business @relation(fields: [businessId], references: [id])
 }
 
 model RevenueEvent {
   id          String   @id @default(uuid())
-  poolAddress   String
+  poolAddress String
   amount      Float
+  proofUrl    String?
   processed   Boolean  @default(false)
   createdAt   DateTime @default(now())
 }
