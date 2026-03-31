@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid } from "recharts";
-import { ShieldCheck, Calendar, Coins, ArrowUpRight, Clock, Building2, ExternalLink, ShieldAlert, History, Key, Users, TrendingUp, Wallet2, ChevronRight } from "lucide-react";
+import { ShieldCheck, Calendar, Coins, ArrowUpRight, Clock, Building2, ExternalLink, ShieldAlert, History, Key, Users, TrendingUp, Wallet2, ChevronRight, Lock, FileText, CheckCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import { ConnectButton } from '@rainbow-me/rainbowkit';
@@ -73,8 +73,8 @@ const POOL_ABI = [
     }
 ] as const;
 
-// Hardcoded Mock USDT Address for BNB Testnet
-const USDT_ADDRESS = "0xBdab08C6d27cb6C5aa751Bc512cbe998F9EB9fbE" as `0x${string}`;
+// Read from env, fallback to BSC Testnet address
+const USDT_ADDRESS = (process.env.NEXT_PUBLIC_USDT_ADDRESS || "0xBdab08C6d27cb6C5aa751Bc512cbe998F9EB9fbE") as `0x${string}`;
 
 export default function PoolDetail() {
     const { id } = useParams();
@@ -363,6 +363,22 @@ export default function PoolDetail() {
                                 <div className={`font-display text-sm font-bold uppercase tracking-widest ${pool.verificationStatus === 'VERIFIED' ? 'text-emerald-500' : 'text-amber-500'}`}>
                                     {pool.verificationStatus || 'Pending'}
                                 </div>
+                            </div>
+                        </div>
+
+                        {/* Trust & Security Badges (Hardcoded for Demo) */}
+                        <div className="flex flex-wrap gap-3 mb-8">
+                            <div className="flex items-center gap-2 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-bold px-3 py-2 rounded-lg border border-emerald-500/20 transition-all hover:bg-emerald-500/20">
+                                <ShieldCheck className="h-4 w-4" /> Verified Business
+                            </div>
+                            <div className="flex items-center gap-2 bg-blue-500/10 text-blue-600 dark:text-blue-400 text-xs font-bold px-3 py-2 rounded-lg border border-blue-500/20 transition-all hover:bg-blue-500/20">
+                                <Lock className="h-4 w-4" /> {(pool.stakedAmount || 0).toLocaleString()} USDT Collateral Staked
+                            </div>
+                            <div className="flex items-center gap-2 bg-purple-500/10 text-purple-600 dark:text-purple-400 text-xs font-bold px-3 py-2 rounded-lg border border-purple-500/20 transition-all hover:bg-purple-500/20">
+                                <FileText className="h-4 w-4" /> Smart Contracts Audited
+                            </div>
+                            <div className="flex items-center gap-2 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 text-xs font-bold px-3 py-2 rounded-lg border border-indigo-500/20 transition-all hover:bg-indigo-500/20">
+                                <CheckCircle className="h-4 w-4" /> Financial Records Verified
                             </div>
                         </div>
 

@@ -30,7 +30,8 @@ const FACTORY_ABI = [
             { "indexed": true, "internalType": "address", "name": "poolAddress", "type": "address" },
             { "indexed": true, "internalType": "address", "name": "businessAddress", "type": "address" },
             { "indexed": false, "internalType": "string", "name": "tokenName", "type": "string" },
-            { "indexed": false, "internalType": "string", "name": "tokenSymbol", "type": "string" }
+            { "indexed": false, "internalType": "string", "name": "tokenSymbol", "type": "string" },
+            { "indexed": false, "internalType": "uint256", "name": "stakedAmount", "type": "uint256" }
         ],
         "name": "PoolCreated",
         "type": "event"
@@ -38,8 +39,22 @@ const FACTORY_ABI = [
 ] as const;
 
 
-// Hardcoded Mock Factory Address for BNB Testnet
-const FACTORY_ADDRESS = "0x7D3165C15690C5d51C4CEF975d2836c99237B3E3" as `0x${string}`;
+// Read from env, fallback to CashflowPoolFactory V2
+const FACTORY_ADDRESS = (process.env.NEXT_PUBLIC_FACTORY_ADDRESS || "0xe2523BAAB0584EC44A4730526A6146620e692776") as `0x${string}`;
+const USDT_ADDRESS = (process.env.NEXT_PUBLIC_USDT_ADDRESS || "0xBdab08C6d27cb6C5aa751Bc512cbe998F9EB9fbE") as `0x${string}`;
+
+const ERC20_ABI = [
+    {
+        "inputs": [
+            { "internalType": "address", "name": "spender", "type": "address" },
+            { "internalType": "uint256", "name": "amount", "type": "uint256" }
+        ],
+        "name": "approve",
+        "outputs": [{ "internalType": "bool", "name": "", "type": "bool" }],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    }
+] as const;
 
 const POOL_WRITE_ABI = [
     {
@@ -142,19 +157,44 @@ export default function BusinessDashboard() {
             setIsSubmitting(true);
 
             const symbol = formData.name.split(" ").map(w => w[0]).join("").toUpperCase() || "CASH";
+            
+            const targetVal = Number(formData.target || "0");
+            const stakeVal = Number(formData.stakeAmount || "0");
+            
+            // Phase 2 Smart Contract Enforces a Minimum 10% Collateral Stake
+            if (stakeVal < targetVal * 0.1) {
+                alert(`Insufficient Collateral Stake! The Smart Contract mandates a minimum 10% stake.\n\nYour target is $${targetVal}, so you must stake at least $${targetVal * 0.1} Mock USDT.`);
+                setIsSubmitting(false);
+                return;
+            }
+
             const targetAmount = parseUnits(formData.target || "0", 18);
             const durationDays = BigInt(formData.duration || "0");
             const revShare = BigInt(formData.revenueShare || "0");
             const stakeAmount = parseUnits(formData.stakeAmount || "0", 18);
 
-            // 1. Deploy child CashflowPool via the Factory on BSC Testnet
+            // 1. Approve Factory to spend USDT as Collateral
+            if (stakeAmount > 0n) {
+                console.log(`Approving ${stakeAmount.toString()} Mock USDT (${USDT_ADDRESS}) for Factory (${FACTORY_ADDRESS})`);
+                const approveTxHash = await deployPool({
+                    address: USDT_ADDRESS,
+                    abi: ERC20_ABI,
+                    functionName: 'approve',
+                    args: [FACTORY_ADDRESS, stakeAmount],
+                });
+                console.log("Approval TX:", approveTxHash);
+                await publicClient!.waitForTransactionReceipt({ hash: approveTxHash });
+            }
+
+            console.log("Wallet should now prompt for pool deployment on factory...");
+            // 2. Deploy child CashflowPool via the Factory on BSC Testnet
             const txHash = await deployPool({
                 address: FACTORY_ADDRESS,
                 abi: FACTORY_ABI,
                 functionName: 'createPool',
-                args: [formData.name, symbol, targetAmount, durationDays, revShare, stakeAmount],
-                gas: BigInt(5000000),
+                args: [formData.name, symbol, targetAmount, durationDays, revShare, stakeAmount]
             });
+            console.log("Deployment TX Hash:", txHash);
 
             // 2. Wait for the transaction to be included in a block
             const receipt = await publicClient!.waitForTransactionReceipt({ hash: txHash });
@@ -172,6 +212,9 @@ export default function BusinessDashboard() {
                     businessAddress: address,
                     businessName: formData.name,
                     description: formData.description,
+                    poolAddress: newPoolAddress,
+                    tokenName: formData.name,
+                    tokenSymbol: symbol,
                     fundingTarget: Number(formData.target),
                     revenueShare: Number(formData.revenueShare),
                     durationDays: Number(formData.duration),
@@ -185,10 +228,19 @@ export default function BusinessDashboard() {
             setShowCreateFlow(false);
             alert(`Cashflow Pool deployed on BNB Chain!\nPool Address: ${newPoolAddress || 'See BscScan for address'}`);
 
-        } catch (error) {
+        } catch (error: any) {
             console.error("Factory Deployment failed:", error);
             setIsSubmitting(false);
-            alert("Failed to deploy smart contract. See console.");
+            
+            // Extract the most readable error message
+            let errMsg = error?.shortMessage || error?.message || "Unknown error occurred";
+            if (errMsg.includes("Insufficient balance")) {
+                errMsg = "You don't have enough Mock USDT to stake! Please get Mock USDT from the Faucet first.";
+            } else if (errMsg.includes("Insufficient stake amount")) {
+                errMsg = "Your stake amount must be at least 10% of the funding target.";
+            }
+            
+            alert(`Transaction Failed:\n\n${errMsg}`);
         }
     };
 

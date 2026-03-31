@@ -262,12 +262,21 @@ app.post("/api/faucet", async (req, res) => {
         const wallet = new ethers.Wallet(process.env.PRIVATE_KEY!, provider);
         const usdtAbi = ["function mint(address to, uint256 amount) external"];
         const usdt = new ethers.Contract(process.env.STABLECOIN_ADDRESS!, usdtAbi, wallet);
+        
+        console.log(`Faucet: Minting 1000 Mock USDT to ${targetAddress} on BSC Testnet...`);
         const tx = await (usdt as any).mint(targetAddress, ethers.parseUnits("1000", 18));
+        console.log(`Faucet: TX Submitted -> ${tx.hash}`);
         await tx.wait();
+        console.log(`Faucet: Mined!`);
         res.json({ success: true, txHash: tx.hash });
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: "Faucet failed" });
+    } catch (error: any) {
+        console.error("\n=== FAUCET ERROR ====");
+        console.error("Reason:", error.reason || "Unknown Revert Reason");
+        console.error("Code:", error.code);
+        console.error("Action:", error.action);
+        console.error(error.message);
+        console.error("=====================\n");
+        res.status(500).json({ error: "Faucet failed. Check terminal logs." });
     }
 });
 

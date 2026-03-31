@@ -15,14 +15,15 @@ import {
 import { WagmiProvider } from 'wagmi';
 import {
     bsc,
-    bscTestnet
+    bscTestnet,
+    hardhat
 } from 'wagmi/chains';
 import { ThemeProvider as NextThemesProvider, useTheme } from "next-themes";
 
 const config = getDefaultConfig({
     appName: 'Cashflow Protocol',
     projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || 'c0f9941a5472eb2e3a1f19f201018698', // Read from env, fallback to public unrestricted key
-    chains: [bsc, bscTestnet],
+    chains: [bsc, bscTestnet, hardhat],
     ssr: true,
 });
 
@@ -47,9 +48,11 @@ function Web3Providers({ children }: { children: React.ReactNode }) {
     return (
         <WagmiProvider config={config}>
             <QueryClientProvider client={queryClient}>
-                <RainbowKitProvider theme={resolvedTheme === 'dark' ? darkTheme() : lightTheme()}>
-                    {mounted ? children : null}
-                </RainbowKitProvider>
+                {mounted ? (
+                    <RainbowKitProvider theme={resolvedTheme === 'dark' ? darkTheme() : lightTheme()}>
+                        {children}
+                    </RainbowKitProvider>
+                ) : null}
             </QueryClientProvider>
         </WagmiProvider>
     );
