@@ -36,13 +36,17 @@ export interface CashflowPoolInterface extends Interface {
       | "fundingRaised"
       | "fundingTarget"
       | "invest"
+      | "isDisputed"
       | "isFunded"
       | "oracleAddress"
       | "owner"
       | "renounceOwnership"
+      | "reportFraud"
       | "revenueSharePercentage"
       | "rewardDebt"
+      | "slashStake"
       | "stablecoin"
+      | "stakedAmount"
       | "totalRevenueDeposited"
       | "transferOwnership"
       | "withdrawRaisedFunds"
@@ -50,10 +54,12 @@ export interface CashflowPoolInterface extends Interface {
 
   getEvent(
     nameOrSignatureOrTopic:
+      | "FraudReported"
       | "FundsWithdrawnByBusiness"
       | "InvestmentMade"
       | "OwnershipTransferred"
       | "RevenueDeposited"
+      | "StakeSlashed"
       | "YieldClaimed"
   ): EventFragment;
 
@@ -97,6 +103,10 @@ export interface CashflowPoolInterface extends Interface {
     functionFragment: "invest",
     values: [BigNumberish]
   ): string;
+  encodeFunctionData(
+    functionFragment: "isDisputed",
+    values?: undefined
+  ): string;
   encodeFunctionData(functionFragment: "isFunded", values?: undefined): string;
   encodeFunctionData(
     functionFragment: "oracleAddress",
@@ -108,6 +118,10 @@ export interface CashflowPoolInterface extends Interface {
     values?: undefined
   ): string;
   encodeFunctionData(
+    functionFragment: "reportFraud",
+    values?: undefined
+  ): string;
+  encodeFunctionData(
     functionFragment: "revenueSharePercentage",
     values?: undefined
   ): string;
@@ -116,7 +130,15 @@ export interface CashflowPoolInterface extends Interface {
     values: [AddressLike]
   ): string;
   encodeFunctionData(
+    functionFragment: "slashStake",
+    values: [AddressLike]
+  ): string;
+  encodeFunctionData(
     functionFragment: "stablecoin",
+    values?: undefined
+  ): string;
+  encodeFunctionData(
+    functionFragment: "stakedAmount",
     values?: undefined
   ): string;
   encodeFunctionData(
@@ -166,6 +188,7 @@ export interface CashflowPoolInterface extends Interface {
     data: BytesLike
   ): Result;
   decodeFunctionResult(functionFragment: "invest", data: BytesLike): Result;
+  decodeFunctionResult(functionFragment: "isDisputed", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "isFunded", data: BytesLike): Result;
   decodeFunctionResult(
     functionFragment: "oracleAddress",
@@ -177,11 +200,20 @@ export interface CashflowPoolInterface extends Interface {
     data: BytesLike
   ): Result;
   decodeFunctionResult(
+    functionFragment: "reportFraud",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
     functionFragment: "revenueSharePercentage",
     data: BytesLike
   ): Result;
   decodeFunctionResult(functionFragment: "rewardDebt", data: BytesLike): Result;
+  decodeFunctionResult(functionFragment: "slashStake", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "stablecoin", data: BytesLike): Result;
+  decodeFunctionResult(
+    functionFragment: "stakedAmount",
+    data: BytesLike
+  ): Result;
   decodeFunctionResult(
     functionFragment: "totalRevenueDeposited",
     data: BytesLike
@@ -194,6 +226,18 @@ export interface CashflowPoolInterface extends Interface {
     functionFragment: "withdrawRaisedFunds",
     data: BytesLike
   ): Result;
+}
+
+export namespace FraudReportedEvent {
+  export type InputTuple = [reporter: AddressLike];
+  export type OutputTuple = [reporter: string];
+  export interface OutputObject {
+    reporter: string;
+  }
+  export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
+  export type Filter = TypedDeferredTopicFilter<Event>;
+  export type Log = TypedEventLog<Event>;
+  export type LogDescription = TypedLogDescription<Event>;
 }
 
 export namespace FundsWithdrawnByBusinessEvent {
@@ -235,6 +279,18 @@ export namespace OwnershipTransferredEvent {
 }
 
 export namespace RevenueDepositedEvent {
+  export type InputTuple = [amount: BigNumberish];
+  export type OutputTuple = [amount: bigint];
+  export interface OutputObject {
+    amount: bigint;
+  }
+  export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
+  export type Filter = TypedDeferredTopicFilter<Event>;
+  export type Log = TypedEventLog<Event>;
+  export type LogDescription = TypedLogDescription<Event>;
+}
+
+export namespace StakeSlashedEvent {
   export type InputTuple = [amount: BigNumberish];
   export type OutputTuple = [amount: bigint];
   export interface OutputObject {
@@ -330,6 +386,8 @@ export interface CashflowPool extends BaseContract {
 
   invest: TypedContractMethod<[amount: BigNumberish], [void], "nonpayable">;
 
+  isDisputed: TypedContractMethod<[], [boolean], "view">;
+
   isFunded: TypedContractMethod<[], [boolean], "view">;
 
   oracleAddress: TypedContractMethod<[], [string], "view">;
@@ -338,11 +396,21 @@ export interface CashflowPool extends BaseContract {
 
   renounceOwnership: TypedContractMethod<[], [void], "nonpayable">;
 
+  reportFraud: TypedContractMethod<[], [void], "nonpayable">;
+
   revenueSharePercentage: TypedContractMethod<[], [bigint], "view">;
 
   rewardDebt: TypedContractMethod<[arg0: AddressLike], [bigint], "view">;
 
+  slashStake: TypedContractMethod<
+    [recipient: AddressLike],
+    [void],
+    "nonpayable"
+  >;
+
   stablecoin: TypedContractMethod<[], [string], "view">;
+
+  stakedAmount: TypedContractMethod<[], [bigint], "view">;
 
   totalRevenueDeposited: TypedContractMethod<[], [bigint], "view">;
 
@@ -389,6 +457,9 @@ export interface CashflowPool extends BaseContract {
     nameOrSignature: "invest"
   ): TypedContractMethod<[amount: BigNumberish], [void], "nonpayable">;
   getFunction(
+    nameOrSignature: "isDisputed"
+  ): TypedContractMethod<[], [boolean], "view">;
+  getFunction(
     nameOrSignature: "isFunded"
   ): TypedContractMethod<[], [boolean], "view">;
   getFunction(
@@ -401,14 +472,23 @@ export interface CashflowPool extends BaseContract {
     nameOrSignature: "renounceOwnership"
   ): TypedContractMethod<[], [void], "nonpayable">;
   getFunction(
+    nameOrSignature: "reportFraud"
+  ): TypedContractMethod<[], [void], "nonpayable">;
+  getFunction(
     nameOrSignature: "revenueSharePercentage"
   ): TypedContractMethod<[], [bigint], "view">;
   getFunction(
     nameOrSignature: "rewardDebt"
   ): TypedContractMethod<[arg0: AddressLike], [bigint], "view">;
   getFunction(
+    nameOrSignature: "slashStake"
+  ): TypedContractMethod<[recipient: AddressLike], [void], "nonpayable">;
+  getFunction(
     nameOrSignature: "stablecoin"
   ): TypedContractMethod<[], [string], "view">;
+  getFunction(
+    nameOrSignature: "stakedAmount"
+  ): TypedContractMethod<[], [bigint], "view">;
   getFunction(
     nameOrSignature: "totalRevenueDeposited"
   ): TypedContractMethod<[], [bigint], "view">;
@@ -419,6 +499,13 @@ export interface CashflowPool extends BaseContract {
     nameOrSignature: "withdrawRaisedFunds"
   ): TypedContractMethod<[], [void], "nonpayable">;
 
+  getEvent(
+    key: "FraudReported"
+  ): TypedContractEvent<
+    FraudReportedEvent.InputTuple,
+    FraudReportedEvent.OutputTuple,
+    FraudReportedEvent.OutputObject
+  >;
   getEvent(
     key: "FundsWithdrawnByBusiness"
   ): TypedContractEvent<
@@ -448,6 +535,13 @@ export interface CashflowPool extends BaseContract {
     RevenueDepositedEvent.OutputObject
   >;
   getEvent(
+    key: "StakeSlashed"
+  ): TypedContractEvent<
+    StakeSlashedEvent.InputTuple,
+    StakeSlashedEvent.OutputTuple,
+    StakeSlashedEvent.OutputObject
+  >;
+  getEvent(
     key: "YieldClaimed"
   ): TypedContractEvent<
     YieldClaimedEvent.InputTuple,
@@ -456,6 +550,17 @@ export interface CashflowPool extends BaseContract {
   >;
 
   filters: {
+    "FraudReported(address)": TypedContractEvent<
+      FraudReportedEvent.InputTuple,
+      FraudReportedEvent.OutputTuple,
+      FraudReportedEvent.OutputObject
+    >;
+    FraudReported: TypedContractEvent<
+      FraudReportedEvent.InputTuple,
+      FraudReportedEvent.OutputTuple,
+      FraudReportedEvent.OutputObject
+    >;
+
     "FundsWithdrawnByBusiness(uint256)": TypedContractEvent<
       FundsWithdrawnByBusinessEvent.InputTuple,
       FundsWithdrawnByBusinessEvent.OutputTuple,
@@ -498,6 +603,17 @@ export interface CashflowPool extends BaseContract {
       RevenueDepositedEvent.InputTuple,
       RevenueDepositedEvent.OutputTuple,
       RevenueDepositedEvent.OutputObject
+    >;
+
+    "StakeSlashed(uint256)": TypedContractEvent<
+      StakeSlashedEvent.InputTuple,
+      StakeSlashedEvent.OutputTuple,
+      StakeSlashedEvent.OutputObject
+    >;
+    StakeSlashed: TypedContractEvent<
+      StakeSlashedEvent.InputTuple,
+      StakeSlashedEvent.OutputTuple,
+      StakeSlashedEvent.OutputObject
     >;
 
     "YieldClaimed(address,uint256)": TypedContractEvent<

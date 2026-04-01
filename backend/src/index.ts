@@ -26,7 +26,10 @@ app.post("/api/create-pool", async (req, res) => {
             tokenSymbol,
             fundingTarget,
             revenueShare,
-            durationDays
+            durationDays,
+            website,
+            twitter,
+            stakedAmount
         } = req.body;
 
         let business = await prisma.business.findUnique({
@@ -51,7 +54,11 @@ app.post("/api/create-pool", async (req, res) => {
                 tokenSymbol,
                 fundingTarget,
                 revenueShare,
-                durationDays
+                durationDays,
+                website,
+                twitter,
+                stakedAmount: Number(stakedAmount || 0),
+                verificationStatus: "PENDING"
             }
         });
 
@@ -94,20 +101,34 @@ app.get("/api/get-pool-data", async (req, res) => {
         res.status(500).json({ error: "Failed to fetch pools" });
     }
 });
-
 app.post("/api/submit-revenue", async (req, res) => {
     try {
-        const { poolAddress, amount } = req.body;
+        const { poolAddress, amount, proofUrl } = req.body;
         const event = await prisma.revenueEvent.create({
             data: {
                 poolAddress,
-                amount
+                amount,
+                proofUrl
             }
         });
         res.json({ success: true, event });
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: "Failed to submit revenue" });
+    }
+});
+
+// ADMIN: Verify a pool (Mock admin for now)
+app.post("/api/verify-pool", async (req, res) => {
+    try {
+        const { poolAddress, status } = req.body;
+        const updatedPool = await prisma.pool.update({
+            where: { poolAddress },
+            data: { verificationStatus: status }
+        });
+        res.json({ success: true, pool: updatedPool });
+    } catch (error) {
+        res.status(500).json({ error: "Failed to update verification status" });
     }
 });
 
@@ -241,12 +262,21 @@ app.post("/api/faucet", async (req, res) => {
         const wallet = new ethers.Wallet(process.env.PRIVATE_KEY!, provider);
         const usdtAbi = ["function mint(address to, uint256 amount) external"];
         const usdt = new ethers.Contract(process.env.STABLECOIN_ADDRESS!, usdtAbi, wallet);
+        
+        console.log(`Faucet: Minting 1000 Mock USDT to ${targetAddress} on BSC Testnet...`);
         const tx = await (usdt as any).mint(targetAddress, ethers.parseUnits("1000", 18));
+        console.log(`Faucet: TX Submitted -> ${tx.hash}`);
         await tx.wait();
+        console.log(`Faucet: Mined!`);
         res.json({ success: true, txHash: tx.hash });
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: "Faucet failed" });
+    } catch (error: any) {
+        console.error("\n=== FAUCET ERROR ====");
+        console.error("Reason:", error.reason || "Unknown Revert Reason");
+        console.error("Code:", error.code);
+        console.error("Action:", error.action);
+        console.error(error.message);
+        console.error("=====================\n");
+        res.status(500).json({ error: "Faucet failed. Check terminal logs." });
     }
 });
 

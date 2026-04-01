@@ -16,7 +16,8 @@ const FACTORY_ABI = [
             { "internalType": "string", "name": "_tokenSymbol", "type": "string" },
             { "internalType": "uint256", "name": "_fundingTarget", "type": "uint256" },
             { "internalType": "uint256", "name": "_fundDurationDays", "type": "uint256" },
-            { "internalType": "uint256", "name": "_revenueSharePercentage", "type": "uint256" }
+            { "internalType": "uint256", "name": "_revenueSharePercentage", "type": "uint256" },
+            { "internalType": "uint256", "name": "_stakeAmount", "type": "uint256" }
         ],
         "name": "createPool",
         "outputs": [{ "internalType": "address", "name": "", "type": "address" }],
@@ -29,7 +30,8 @@ const FACTORY_ABI = [
             { "indexed": true, "internalType": "address", "name": "poolAddress", "type": "address" },
             { "indexed": true, "internalType": "address", "name": "businessAddress", "type": "address" },
             { "indexed": false, "internalType": "string", "name": "tokenName", "type": "string" },
-            { "indexed": false, "internalType": "string", "name": "tokenSymbol", "type": "string" }
+            { "indexed": false, "internalType": "string", "name": "tokenSymbol", "type": "string" },
+            { "indexed": false, "internalType": "uint256", "name": "stakedAmount", "type": "uint256" }
         ],
         "name": "PoolCreated",
         "type": "event"
@@ -37,8 +39,22 @@ const FACTORY_ABI = [
 ] as const;
 
 
-// Hardcoded Mock Factory Address for BNB Testnet
-const FACTORY_ADDRESS = "0x7D3165C15690C5d51C4CEF975d2836c99237B3E3" as `0x${string}`;
+// Read from env, fallback to CashflowPoolFactory V2
+const FACTORY_ADDRESS = (process.env.NEXT_PUBLIC_FACTORY_ADDRESS || "0xe2523BAAB0584EC44A4730526A6146620e692776") as `0x${string}`;
+const USDT_ADDRESS = (process.env.NEXT_PUBLIC_USDT_ADDRESS || "0xBdab08C6d27cb6C5aa751Bc512cbe998F9EB9fbE") as `0x${string}`;
+
+const ERC20_ABI = [
+    {
+        "inputs": [
+            { "internalType": "address", "name": "spender", "type": "address" },
+            { "internalType": "uint256", "name": "amount", "type": "uint256" }
+        ],
+        "name": "approve",
+        "outputs": [{ "internalType": "bool", "name": "", "type": "bool" }],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    }
+] as const;
 
 const POOL_WRITE_ABI = [
     {
@@ -66,12 +82,13 @@ export default function BusinessDashboard() {
 
     // Form State
     const [formData, setFormData] = useState({
-        name: "", description: "", target: "", duration: "", revenueShare: ""
+        name: "", description: "", target: "", duration: "", revenueShare: "", website: "", twitter: "", stakeAmount: ""
     });
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [myPools, setMyPools] = useState<any[]>([]);
     const [poolsLoading, setPoolsLoading] = useState(true);
     const [revenueAmounts, setRevenueAmounts] = useState<Record<number, string>>({});
+    const [revenueProofs, setRevenueProofs] = useState<Record<number, string>>({});
 
     const publicClient = usePublicClient();
     const { address, isConnected } = useAccount();
@@ -99,7 +116,7 @@ export default function BusinessDashboard() {
             const res = await fetch(`${baseUrl}/api/submit-revenue`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ poolAddress, amount: Number(amount) })
+                body: JSON.stringify({ poolAddress, amount: Number(amount), proofUrl: revenueProofs[poolId] || "" })
             });
             if (res.ok) {
                 alert(`Revenue of $${amount} submitted for pool ${poolAddress}. The Oracle will push it on-chain.`);
@@ -140,18 +157,44 @@ export default function BusinessDashboard() {
             setIsSubmitting(true);
 
             const symbol = formData.name.split(" ").map(w => w[0]).join("").toUpperCase() || "CASH";
+            
+            const targetVal = Number(formData.target || "0");
+            const stakeVal = Number(formData.stakeAmount || "0");
+            
+            // Phase 2 Smart Contract Enforces a Minimum 10% Collateral Stake
+            if (stakeVal < targetVal * 0.1) {
+                alert(`Insufficient Collateral Stake! The Smart Contract mandates a minimum 10% stake.\n\nYour target is $${targetVal}, so you must stake at least $${targetVal * 0.1} Mock USDT.`);
+                setIsSubmitting(false);
+                return;
+            }
+
             const targetAmount = parseUnits(formData.target || "0", 18);
             const durationDays = BigInt(formData.duration || "0");
             const revShare = BigInt(formData.revenueShare || "0");
+            const stakeAmount = parseUnits(formData.stakeAmount || "0", 18);
 
-            // 1. Deploy child CashflowPool via the Factory on BSC Testnet
+            // 1. Approve Factory to spend USDT as Collateral
+            if (stakeAmount > 0n) {
+                console.log(`Approving ${stakeAmount.toString()} Mock USDT (${USDT_ADDRESS}) for Factory (${FACTORY_ADDRESS})`);
+                const approveTxHash = await deployPool({
+                    address: USDT_ADDRESS,
+                    abi: ERC20_ABI,
+                    functionName: 'approve',
+                    args: [FACTORY_ADDRESS, stakeAmount],
+                });
+                console.log("Approval TX:", approveTxHash);
+                await publicClient!.waitForTransactionReceipt({ hash: approveTxHash });
+            }
+
+            console.log("Wallet should now prompt for pool deployment on factory...");
+            // 2. Deploy child CashflowPool via the Factory on BSC Testnet
             const txHash = await deployPool({
                 address: FACTORY_ADDRESS,
                 abi: FACTORY_ABI,
                 functionName: 'createPool',
-                args: [formData.name, symbol, targetAmount, durationDays, revShare],
-                gas: BigInt(5000000),
+                args: [formData.name, symbol, targetAmount, durationDays, revShare, stakeAmount]
             });
+            console.log("Deployment TX Hash:", txHash);
 
             // 2. Wait for the transaction to be included in a block
             const receipt = await publicClient!.waitForTransactionReceipt({ hash: txHash });
@@ -169,12 +212,15 @@ export default function BusinessDashboard() {
                     businessAddress: address,
                     businessName: formData.name,
                     description: formData.description,
-                    poolAddress: newPoolAddress || txHash, // fallback to txHash if event parse fails
+                    poolAddress: newPoolAddress,
                     tokenName: formData.name,
                     tokenSymbol: symbol,
                     fundingTarget: Number(formData.target),
                     revenueShare: Number(formData.revenueShare),
                     durationDays: Number(formData.duration),
+                    website: formData.website,
+                    twitter: formData.twitter,
+                    stakedAmount: Number(formData.stakeAmount)
                 })
             });
 
@@ -182,10 +228,19 @@ export default function BusinessDashboard() {
             setShowCreateFlow(false);
             alert(`Cashflow Pool deployed on BNB Chain!\nPool Address: ${newPoolAddress || 'See BscScan for address'}`);
 
-        } catch (error) {
+        } catch (error: any) {
             console.error("Factory Deployment failed:", error);
             setIsSubmitting(false);
-            alert("Failed to deploy smart contract. See console.");
+            
+            // Extract the most readable error message
+            let errMsg = error?.shortMessage || error?.message || "Unknown error occurred";
+            if (errMsg.includes("Insufficient balance")) {
+                errMsg = "You don't have enough Mock USDT to stake! Please get Mock USDT from the Faucet first.";
+            } else if (errMsg.includes("Insufficient stake amount")) {
+                errMsg = "Your stake amount must be at least 10% of the funding target.";
+            }
+            
+            alert(`Transaction Failed:\n\n${errMsg}`);
         }
     };
 
@@ -252,11 +307,27 @@ export default function BusinessDashboard() {
                                     </div>
                                     <p className="text-xs text-slate-500 pt-1">This percentage of your ongoing gross revenue will be automatically directed to the smart contract.</p>
                                 </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-sm font-semibold text-foreground">Verification Website</label>
+                                    <input placeholder="https://downtownespresso.com" className="w-full bg-background border border-surface-border rounded-xl px-4 py-3 text-sm focus:border-primary outline-none" onChange={e => setFormData({ ...formData, website: e.target.value })} />
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-sm font-semibold text-foreground">Social (X / Twitter)</label>
+                                    <input placeholder="@DT_Espresso" className="w-full bg-background border border-surface-border rounded-xl px-4 py-3 text-sm focus:border-primary outline-none" onChange={e => setFormData({ ...formData, twitter: e.target.value })} />
+                                </div>
+
+                                <div className="col-span-1 md:col-span-2 space-y-2">
+                                    <label className="text-sm font-semibold text-foreground">Collateral Stake (USDT)</label>
+                                    <input required type="number" placeholder="5000" min="0" className="w-full bg-background border border-surface-border rounded-xl px-4 py-3 text-sm focus:border-primary outline-none" onChange={e => setFormData({ ...formData, stakeAmount: e.target.value })} />
+                                    <p className="text-xs text-slate-500 pt-1">Recommended: 10% of target. This stake acts as collateral to build investor trust.</p>
+                                </div>
                             </div>
 
                             <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 flex gap-3 text-sm text-primary">
                                 <ShieldCheck className="h-5 w-5 flex-shrink-0" />
-                                <p>By deploying, a unique <strong>CashflowToken (ERC20)</strong> contract will be minted on BNB Chain. It is immutable.</p>
+                                <p>By deploying, a unique <strong>CashflowToken (ERC20)</strong> contract will be minted and your stake will be locked as collateral.</p>
                             </div>
 
                             <button disabled={isSubmitting} type="submit" className="w-full bg-[#F3BA2F] hover:bg-[#e0ab2b] text-black font-bold py-4 rounded-xl flex justify-center items-center gap-2 transition-all shadow-md">
@@ -349,20 +420,28 @@ export default function BusinessDashboard() {
                                                     View on BscScan →
                                                 </a>
                                             )}
-                                            <div className="flex gap-2">
+                                            <div className="flex flex-col gap-2">
+                                                <div className="flex gap-2">
+                                                    <input
+                                                        type="number"
+                                                        placeholder="Revenue amount ($)"
+                                                        value={revenueAmounts[pool.id] || ""}
+                                                        onChange={e => setRevenueAmounts(prev => ({ ...prev, [pool.id]: e.target.value }))}
+                                                        className="flex-1 bg-background border border-surface-border rounded-xl px-3 py-2 text-sm focus:border-primary outline-none"
+                                                    />
+                                                    <button
+                                                        onClick={() => handleSubmitRevenue(pool.id, pool.poolAddress, revenueAmounts[pool.id] || "")}
+                                                        className="bg-primary/10 text-primary hover:bg-primary/20 transition-colors px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-1"
+                                                    >
+                                                        <Banknote className="h-4 w-4" /> Submit
+                                                    </button>
+                                                </div>
                                                 <input
-                                                    type="number"
-                                                    placeholder="Revenue amount ($)"
-                                                    value={revenueAmounts[pool.id] || ""}
-                                                    onChange={e => setRevenueAmounts(prev => ({ ...prev, [pool.id]: e.target.value }))}
-                                                    className="flex-1 bg-background border border-surface-border rounded-xl px-3 py-2 text-sm focus:border-primary outline-none"
+                                                    placeholder="Proof URL (e.g. POS report link)"
+                                                    value={revenueProofs[pool.id] || ""}
+                                                    onChange={e => setRevenueProofs(prev => ({ ...prev, [pool.id]: e.target.value }))}
+                                                    className="w-full bg-background border border-surface-border rounded-xl px-3 py-2 text-[10px] focus:border-primary outline-none"
                                                 />
-                                                <button
-                                                    onClick={() => handleSubmitRevenue(pool.id, pool.poolAddress, revenueAmounts[pool.id] || "")}
-                                                    className="bg-primary/10 text-primary hover:bg-primary/20 transition-colors px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-1"
-                                                >
-                                                    <Banknote className="h-4 w-4" /> Submit
-                                                </button>
                                             </div>
 
                                             <button

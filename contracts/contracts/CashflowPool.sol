@@ -21,6 +21,10 @@ contract CashflowPool is Ownable {
 
     uint256 public revenueSharePercentage; // e.g. 1000 = 10%
 
+    // Collateral / Staking
+    uint256 public stakedAmount;
+    bool public isDisputed;
+
     // Revenue tracking
     uint256 public totalRevenueDeposited;
     uint256 public accRewardPerShare;
@@ -33,6 +37,8 @@ contract CashflowPool is Ownable {
     event RevenueDeposited(uint256 amount);
     event YieldClaimed(address indexed investor, uint256 amount);
     event FundsWithdrawnByBusiness(uint256 amount);
+    event FraudReported(address indexed reporter);
+    event StakeSlashed(uint256 amount);
 
     constructor(
         address _stablecoin,
@@ -42,7 +48,8 @@ contract CashflowPool is Ownable {
         string memory _tokenSymbol,
         uint256 _fundingTarget,
         uint256 _fundDurationDays,
-        uint256 _revenueSharePercentage
+        uint256 _revenueSharePercentage,
+        uint256 _stakedAmount
     ) Ownable(msg.sender) {
         stablecoin = IERC20(_stablecoin);
         businessAddress = _businessAddress;
@@ -51,6 +58,7 @@ contract CashflowPool is Ownable {
         fundingTarget = _fundingTarget;
         fundDeadline = block.timestamp + (_fundDurationDays * 1 days);
         revenueSharePercentage = _revenueSharePercentage;
+        stakedAmount = _stakedAmount;
 
         // Create the token that represents a share of this pool
         cashflowToken = new CashflowToken(
@@ -167,11 +175,23 @@ contract CashflowPool is Ownable {
     }
 
     /**
-     * @notice Helper config for the MVP. We block token transfers after investment unless reward debt is handled.
-     * CashflowToken is standalone so we'd need a wrapper for transfer.
-     * To keep V1 secure and simple, tokens represent the right to claim here.
-     * If they transfer via the ERC20 directly, the receiver resets their debt...
-     * Actually, if they transfer ERC20, the reward Debt of sender and receiver goes out of sync.
-     * For proper V1 MVP robustness without complex DividendToken, we just let investors claim here.
+     * @notice Anyone can report fraud, which marks the pool as disputed.
+     * In a real version, this might require a small deposit to prevent spam.
      */
+    function reportFraud() external {
+        isDisputed = true;
+        emit FraudReported(msg.sender);
+    }
+
+    /**
+     * @notice Admin (Factory owner) can slash the stake if fraud is verified.
+     * The slashed amount could be sent to an insurance pool or distributed to investors.
+     */
+    function slashStake(address recipient) external onlyOwner {
+        require(isDisputed, "Not in dispute");
+        uint256 toSlash = stakedAmount;
+        stakedAmount = 0;
+        stablecoin.safeTransfer(recipient, toSlash);
+        emit StakeSlashed(toSlash);
+    }
 }
