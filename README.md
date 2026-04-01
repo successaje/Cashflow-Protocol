@@ -1,5 +1,4 @@
 <div align="center">
-  <img src="./frontend/public/images/logo-icon-color.svg" alt="Cashflow Protocol Logo" width="120" />
   <h1>Cashflow Protocol</h1>
   <p><strong>Institutional-grade decentralized finance (DeFi) for Real World Assets (RWAs).</strong> <br/> Tokenizing future revenue streams for real-world businesses on the BNB Chain.</p>
 </div>
